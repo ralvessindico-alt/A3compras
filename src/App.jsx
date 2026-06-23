@@ -149,6 +149,16 @@ function SectionDivider({children}){
   </div>;
 }
 
+// Wrapper de campo de formulário com label. Definido no nível do módulo
+// (fora de qualquer componente pai) de propósito: se fosse definido dentro
+// de FormFornecedor/FormCliente, o React recriaria essa função a cada
+// re-render (cada tecla digitada), tratando-a como um componente novo e
+// desmontando o <input> por baixo — por isso só a primeira letra ficava.
+function FormField({label,required,children,col}){
+  const mob=useMobile();
+  return <div style={{gridColumn:mob?undefined:col}}>{label&&<Lbl required={required}>{label}</Lbl>}{children}</div>;
+}
+
 function Lbl({children,required}){
   return <label style={{display:"block",fontSize:11,fontWeight:800,color:C.gray600,letterSpacing:0.5,marginBottom:4,textTransform:"uppercase"}}>
     {children}{required&&<span style={{color:C.red}}> *</span>}
@@ -186,58 +196,57 @@ function FormFornecedor({initial,onSave,onCancel}){
   const set=(k)=>(v)=>setF(p=>({...p,[k]:v}));
   const can=(f.tipoPessoa==="PJ"?f.razaoSocial:f.razaoSocial||f.nomeFantasia)&&(f.tipoPessoa==="PJ"?f.cnpj:f.cpf);
   const G=(cols="1fr 1fr")=>({display:"grid",gridTemplateColumns:mob?"1fr":cols,gap:"12px 14px",marginBottom:4});
-  const F=({label,required,children,col})=><div style={{gridColumn:mob?undefined:col}}>{label&&<Lbl required={required}>{label}</Lbl>}{children}</div>;
   return <div>
     <SectionDivider>Identificação</SectionDivider>
     <div style={{display:"flex",gap:8,marginBottom:14}}>
       {["PJ","PF"].map(t=><button key={t} onClick={()=>set("tipoPessoa")(t)} style={{padding:"6px 18px",borderRadius:7,fontWeight:800,fontSize:12,cursor:"pointer",border:`2px solid ${f.tipoPessoa===t?C.navy:C.gray200}`,background:f.tipoPessoa===t?C.navy:C.white,color:f.tipoPessoa===t?C.white:C.gray400,transition:"all .15s"}}>{t==="PJ"?"Pessoa Jurídica":"Pessoa Física"}</button>)}
     </div>
     <div style={G("1fr 1fr")}>
-      <F label={f.tipoPessoa==="PJ"?"Razão Social":"Nome Completo"} required><Inp value={f.razaoSocial} onChange={set("razaoSocial")} placeholder={f.tipoPessoa==="PJ"?"Razão Social Ltda.":"Nome completo"}/></F>
-      <F label="Nome Fantasia"><Inp value={f.nomeFantasia} onChange={set("nomeFantasia")} placeholder="Nome fantasia"/></F>
-      {f.tipoPessoa==="PJ"?<><F label="CNPJ" required><Inp value={f.cnpj} onChange={set("cnpj")} mask="cnpj" placeholder="00.000.000/0000-00"/></F><F label="Inscrição Estadual"><Inp value={f.ie} onChange={set("ie")} placeholder="Isento ou número"/></F><F label="Inscrição Municipal"><Inp value={f.im} onChange={set("im")} placeholder="Número"/></F></>:<F label="CPF" required><Inp value={f.cpf} onChange={set("cpf")} mask="cpf" placeholder="000.000.000-00"/></F>}
-      <F label="Categoria"><Sel value={f.categoria} onChange={set("categoria")} options={CATEGORIAS} placeholder="Selecione..."/></F>
-      <F label="Porte">
+      <FormField label={f.tipoPessoa==="PJ"?"Razão Social":"Nome Completo"} required><Inp value={f.razaoSocial} onChange={set("razaoSocial")} placeholder={f.tipoPessoa==="PJ"?"Razão Social Ltda.":"Nome completo"}/></FormField>
+      <FormField label="Nome Fantasia"><Inp value={f.nomeFantasia} onChange={set("nomeFantasia")} placeholder="Nome fantasia"/></FormField>
+      {f.tipoPessoa==="PJ"?<><FormField label="CNPJ" required><Inp value={f.cnpj} onChange={set("cnpj")} mask="cnpj" placeholder="00.000.000/0000-00"/></FormField><FormField label="Inscrição Estadual"><Inp value={f.ie} onChange={set("ie")} placeholder="Isento ou número"/></FormField><FormField label="Inscrição Municipal"><Inp value={f.im} onChange={set("im")} placeholder="Número"/></FormField></>:<FormField label="CPF" required><Inp value={f.cpf} onChange={set("cpf")} mask="cpf" placeholder="000.000.000-00"/></FormField>}
+      <FormField label="Categoria"><Sel value={f.categoria} onChange={set("categoria")} options={CATEGORIAS} placeholder="Selecione..."/></FormField>
+      <FormField label="Porte">
         <div style={{display:"flex",alignItems:"center",gap:16,paddingTop:8}}>
           <Toggle value={f.isMei||false} onChange={set("isMei")} label="Microempreendedor Individual (MEI)"/>
           {f.isMei&&<span style={{fontSize:11,fontWeight:800,background:"#FEF9C3",color:"#92400E",padding:"2px 10px",borderRadius:20,border:"1px solid #FDE68A"}}>MEI</span>}
         </div>
-      </F>
+      </FormField>
     </div>
     <SectionDivider>Contato</SectionDivider>
     <div style={G("1fr 1fr")}>
-      <F label="E-mail Principal"><Inp value={f.email} onChange={set("email")} type="email" placeholder="contato@empresa.com.br"/></F>
-      <F label="E-mail Secundário"><Inp value={f.email2} onChange={set("email2")} type="email" placeholder="nfe@empresa.com.br"/></F>
-      <F label="Telefone Fixo"><Inp value={f.telefone} onChange={set("telefone")} mask="tel" placeholder="(00) 0000-0000"/></F>
-      <F label="Celular"><Inp value={f.celular} onChange={set("celular")} mask="tel" placeholder="(00) 00000-0000"/></F>
-      <F label="WhatsApp"><Inp value={f.whatsapp} onChange={set("whatsapp")} mask="tel" placeholder="(00) 00000-0000"/></F>
-      <F label="Site"><Inp value={f.site} onChange={set("site")} placeholder="www.empresa.com.br"/></F>
-      <F label="Contato Principal"><Inp value={f.contatoNome} onChange={set("contatoNome")} placeholder="Nome"/></F>
-      <F label="Cargo"><Inp value={f.contatoCargo} onChange={set("contatoCargo")} placeholder="Função"/></F>
+      <FormField label="E-mail Principal"><Inp value={f.email} onChange={set("email")} type="email" placeholder="contato@empresa.com.br"/></FormField>
+      <FormField label="E-mail Secundário"><Inp value={f.email2} onChange={set("email2")} type="email" placeholder="nfe@empresa.com.br"/></FormField>
+      <FormField label="Telefone Fixo"><Inp value={f.telefone} onChange={set("telefone")} mask="tel" placeholder="(00) 0000-0000"/></FormField>
+      <FormField label="Celular"><Inp value={f.celular} onChange={set("celular")} mask="tel" placeholder="(00) 00000-0000"/></FormField>
+      <FormField label="WhatsApp"><Inp value={f.whatsapp} onChange={set("whatsapp")} mask="tel" placeholder="(00) 00000-0000"/></FormField>
+      <FormField label="Site"><Inp value={f.site} onChange={set("site")} placeholder="www.empresa.com.br"/></FormField>
+      <FormField label="Contato Principal"><Inp value={f.contatoNome} onChange={set("contatoNome")} placeholder="Nome"/></FormField>
+      <FormField label="Cargo"><Inp value={f.contatoCargo} onChange={set("contatoCargo")} placeholder="Função"/></FormField>
     </div>
     <SectionDivider>Endereço</SectionDivider>
     <div style={G("120px 1fr 70px 1fr 1fr 70px")}>
-      <F label="CEP"><Inp value={f.cep} onChange={set("cep")} mask="cep" placeholder="00000-000"/></F>
-      <F label="Logradouro" col="2/5"><Inp value={f.logradouro} onChange={set("logradouro")} placeholder="Rua, Av..."/></F>
-      <F label="Número"><Inp value={f.numero} onChange={set("numero")}/></F>
-      <F label="Complemento" col="1/3"><Inp value={f.complemento} onChange={set("complemento")} placeholder="Sala, Bloco..."/></F>
-      <F label="Bairro" col="3/5"><Inp value={f.bairro} onChange={set("bairro")}/></F>
-      <F label="Cidade" col="5/7"><Inp value={f.cidade} onChange={set("cidade")}/></F>
-      <F label="UF"><Sel value={f.estado} onChange={set("estado")} options={ESTADOS} placeholder="UF"/></F>
+      <FormField label="CEP"><Inp value={f.cep} onChange={set("cep")} mask="cep" placeholder="00000-000"/></FormField>
+      <FormField label="Logradouro" col="2/5"><Inp value={f.logradouro} onChange={set("logradouro")} placeholder="Rua, Av..."/></FormField>
+      <FormField label="Número"><Inp value={f.numero} onChange={set("numero")}/></FormField>
+      <FormField label="Complemento" col="1/3"><Inp value={f.complemento} onChange={set("complemento")} placeholder="Sala, Bloco..."/></FormField>
+      <FormField label="Bairro" col="3/5"><Inp value={f.bairro} onChange={set("bairro")}/></FormField>
+      <FormField label="Cidade" col="5/7"><Inp value={f.cidade} onChange={set("cidade")}/></FormField>
+      <FormField label="UF"><Sel value={f.estado} onChange={set("estado")} options={ESTADOS} placeholder="UF"/></FormField>
     </div>
     <SectionDivider>Comercial</SectionDivider>
     <div style={G("1fr 1fr 1fr")}>
-      <F label="Condição de Pagamento"><Sel value={f.condPagamento} onChange={set("condPagamento")} options={COND_PAGAMENTO} placeholder="Selecione..."/></F>
-      <F label="Prazo de Entrega (dias)"><Inp value={f.prazoEntregaDias} onChange={set("prazoEntregaDias")} type="number" placeholder="Ex: 5"/></F>
-      <F label="Limite de Crédito (R$)"><Inp value={f.limiteCredito} onChange={set("limiteCredito")} type="number" placeholder="0,00"/></F>
+      <FormField label="Condição de Pagamento"><Sel value={f.condPagamento} onChange={set("condPagamento")} options={COND_PAGAMENTO} placeholder="Selecione..."/></FormField>
+      <FormField label="Prazo de Entrega (dias)"><Inp value={f.prazoEntregaDias} onChange={set("prazoEntregaDias")} type="number" placeholder="Ex: 5"/></FormField>
+      <FormField label="Limite de Crédito (R$)"><Inp value={f.limiteCredito} onChange={set("limiteCredito")} type="number" placeholder="0,00"/></FormField>
     </div>
     <SectionDivider>Dados Bancários</SectionDivider>
     <div style={G("1fr 90px 1fr 1fr")}>
-      <F label="Banco"><Inp value={f.banco} onChange={set("banco")} placeholder="Ex: 001 – Banco do Brasil"/></F>
-      <F label="Agência"><Inp value={f.agencia} onChange={set("agencia")} placeholder="0000-X"/></F>
-      <F label="Conta"><Inp value={f.conta} onChange={set("conta")} placeholder="00000-X"/></F>
-      <F label="Tipo de Conta"><Sel value={f.tipoConta} onChange={set("tipoConta")} options={["Corrente","Poupança","Pagamento"]} placeholder="Selecione..."/></F>
-      <F label="Chave PIX" col="1/5"><Inp value={f.pix} onChange={set("pix")} placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória"/></F>
+      <FormField label="Banco"><Inp value={f.banco} onChange={set("banco")} placeholder="Ex: 001 – Banco do Brasil"/></FormField>
+      <FormField label="Agência"><Inp value={f.agencia} onChange={set("agencia")} placeholder="0000-X"/></FormField>
+      <FormField label="Conta"><Inp value={f.conta} onChange={set("conta")} placeholder="00000-X"/></FormField>
+      <FormField label="Tipo de Conta"><Sel value={f.tipoConta} onChange={set("tipoConta")} options={["Corrente","Poupança","Pagamento"]} placeholder="Selecione..."/></FormField>
+      <FormField label="Chave PIX" col="1/5"><Inp value={f.pix} onChange={set("pix")} placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória"/></FormField>
     </div>
     <SectionDivider>Segmentos, Produtos e Serviços</SectionDivider>
     <div style={{marginBottom:16}}>
@@ -348,38 +357,37 @@ function FormCliente({initial,onSave,onCancel}){
   const set=(k)=>(v)=>setF(p=>({...p,[k]:v}));
   const podeSalvar=(f.tipoPessoa==="PJ"?f.razaoSocial:f.razaoSocial||f.nomeFantasia)&&(f.tipoPessoa==="PJ"?f.cnpj:f.cpf);
   const G=(cols="1fr 1fr")=>({display:"grid",gridTemplateColumns:mob?"1fr":cols,gap:"12px 14px",marginBottom:4});
-  const F=({label,required,children,col})=><div style={{gridColumn:mob?undefined:col}}>{label&&<Lbl required={required}>{label}</Lbl>}{children}</div>;
   return <div>
     <SectionDivider>Identificação</SectionDivider>
     <div style={{display:"flex",gap:8,marginBottom:14}}>
       {["PJ","PF"].map(t=><button key={t} type="button" onClick={()=>set("tipoPessoa")(t)} style={{padding:"6px 18px",borderRadius:7,fontWeight:800,fontSize:12,cursor:"pointer",border:`2px solid ${f.tipoPessoa===t?C.navy:C.gray200}`,background:f.tipoPessoa===t?C.navy:C.white,color:f.tipoPessoa===t?C.white:C.gray400}}>{t==="PJ"?"Pessoa Jurídica":"Pessoa Física"}</button>)}
     </div>
     <div style={G("1fr 1fr")}>
-      <F label={f.tipoPessoa==="PJ"?"Razão Social":"Nome Completo"} required><Inp value={f.razaoSocial} onChange={set("razaoSocial")} placeholder={f.tipoPessoa==="PJ"?"Razão Social Ltda.":"Nome completo"}/></F>
-      <F label="Nome Fantasia / Apelido"><Inp value={f.nomeFantasia} onChange={set("nomeFantasia")} placeholder="Ex: Condomínio Wonder"/></F>
-      {f.tipoPessoa==="PJ"?<><F label="CNPJ" required><Inp value={f.cnpj} onChange={set("cnpj")} mask="cnpj" placeholder="00.000.000/0000-00"/></F><F label="Inscrição Estadual"><Inp value={f.ie} onChange={set("ie")} placeholder="Isento ou número"/></F></>:<F label="CPF" required><Inp value={f.cpf} onChange={set("cpf")} mask="cpf" placeholder="000.000.000-00"/></F>}
-      <F label="Categoria"><Sel value={f.categoria} onChange={set("categoria")} options={CATEGORIAS_CLIENTE} placeholder="Selecione..."/></F>
+      <FormField label={f.tipoPessoa==="PJ"?"Razão Social":"Nome Completo"} required><Inp value={f.razaoSocial} onChange={set("razaoSocial")} placeholder={f.tipoPessoa==="PJ"?"Razão Social Ltda.":"Nome completo"}/></FormField>
+      <FormField label="Nome Fantasia / Apelido"><Inp value={f.nomeFantasia} onChange={set("nomeFantasia")} placeholder="Ex: Condomínio Wonder"/></FormField>
+      {f.tipoPessoa==="PJ"?<><FormField label="CNPJ" required><Inp value={f.cnpj} onChange={set("cnpj")} mask="cnpj" placeholder="00.000.000/0000-00"/></FormField><FormField label="Inscrição Estadual"><Inp value={f.ie} onChange={set("ie")} placeholder="Isento ou número"/></FormField></>:<FormField label="CPF" required><Inp value={f.cpf} onChange={set("cpf")} mask="cpf" placeholder="000.000.000-00"/></FormField>}
+      <FormField label="Categoria"><Sel value={f.categoria} onChange={set("categoria")} options={CATEGORIAS_CLIENTE} placeholder="Selecione..."/></FormField>
     </div>
     <SectionDivider>Contato</SectionDivider>
     <div style={G("1fr 1fr")}>
-      <F label="E-mail Principal"><Inp value={f.email} onChange={set("email")} type="email" placeholder="contato@empresa.com.br"/></F>
-      <F label="E-mail Secundário"><Inp value={f.email2} onChange={set("email2")} type="email"/></F>
-      <F label="Telefone Fixo"><Inp value={f.telefone} onChange={set("telefone")} mask="tel" placeholder="(00) 0000-0000"/></F>
-      <F label="Celular"><Inp value={f.celular} onChange={set("celular")} mask="tel" placeholder="(00) 00000-0000"/></F>
-      <F label="WhatsApp"><Inp value={f.whatsapp} onChange={set("whatsapp")} mask="tel"/></F>
-      <F label="Site"><Inp value={f.site} onChange={set("site")}/></F>
-      <F label="Nome do Responsável / Síndico"><Inp value={f.contatoNome} onChange={set("contatoNome")}/></F>
-      <F label="Cargo / Função"><Inp value={f.contatoCargo} onChange={set("contatoCargo")} placeholder="Ex: Síndico, Gerente..."/></F>
+      <FormField label="E-mail Principal"><Inp value={f.email} onChange={set("email")} type="email" placeholder="contato@empresa.com.br"/></FormField>
+      <FormField label="E-mail Secundário"><Inp value={f.email2} onChange={set("email2")} type="email"/></FormField>
+      <FormField label="Telefone Fixo"><Inp value={f.telefone} onChange={set("telefone")} mask="tel" placeholder="(00) 0000-0000"/></FormField>
+      <FormField label="Celular"><Inp value={f.celular} onChange={set("celular")} mask="tel" placeholder="(00) 00000-0000"/></FormField>
+      <FormField label="WhatsApp"><Inp value={f.whatsapp} onChange={set("whatsapp")} mask="tel"/></FormField>
+      <FormField label="Site"><Inp value={f.site} onChange={set("site")}/></FormField>
+      <FormField label="Nome do Responsável / Síndico"><Inp value={f.contatoNome} onChange={set("contatoNome")}/></FormField>
+      <FormField label="Cargo / Função"><Inp value={f.contatoCargo} onChange={set("contatoCargo")} placeholder="Ex: Síndico, Gerente..."/></FormField>
     </div>
     <SectionDivider>Endereço</SectionDivider>
     <div style={G("120px 1fr 70px 1fr 1fr 70px")}>
-      <F label="CEP"><Inp value={f.cep} onChange={set("cep")} mask="cep" placeholder="00000-000"/></F>
-      <F label="Logradouro" col="2/5"><Inp value={f.logradouro} onChange={set("logradouro")}/></F>
-      <F label="Número"><Inp value={f.numero} onChange={set("numero")}/></F>
-      <F label="Complemento" col="1/3"><Inp value={f.complemento} onChange={set("complemento")} placeholder="Bloco, Torre..."/></F>
-      <F label="Bairro" col="3/5"><Inp value={f.bairro} onChange={set("bairro")}/></F>
-      <F label="Cidade" col="5/7"><Inp value={f.cidade} onChange={set("cidade")}/></F>
-      <F label="UF"><Sel value={f.estado} onChange={set("estado")} options={ESTADOS} placeholder="UF"/></F>
+      <FormField label="CEP"><Inp value={f.cep} onChange={set("cep")} mask="cep" placeholder="00000-000"/></FormField>
+      <FormField label="Logradouro" col="2/5"><Inp value={f.logradouro} onChange={set("logradouro")}/></FormField>
+      <FormField label="Número"><Inp value={f.numero} onChange={set("numero")}/></FormField>
+      <FormField label="Complemento" col="1/3"><Inp value={f.complemento} onChange={set("complemento")} placeholder="Bloco, Torre..."/></FormField>
+      <FormField label="Bairro" col="3/5"><Inp value={f.bairro} onChange={set("bairro")}/></FormField>
+      <FormField label="Cidade" col="5/7"><Inp value={f.cidade} onChange={set("cidade")}/></FormField>
+      <FormField label="UF"><Sel value={f.estado} onChange={set("estado")} options={ESTADOS} placeholder="UF"/></FormField>
     </div>
     <SectionDivider>Comercial</SectionDivider>
     <div style={G("1fr 1fr")}>
@@ -1549,14 +1557,17 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
   const TD={padding:"4px 8px",textAlign:"center",borderBottom:`1px solid ${C.gray200}`,fontSize:13};
   const COND_FIELDS=[{key:"entrega",label:"Entrega"},{key:"garantia",label:"Garantia"},{key:"pagamento",label:"Pagamento"},{key:"obs",label:"Obs"}];
 
-  const InlineEdit=({fid,iid})=>{const p=getProp(fid,iid);const isBest=p!=null&&bestByItem[iid]!=null&&p.preco===bestByItem[iid];const isEdit=editCell?.fid===fid&&editCell?.iid===iid;
+  // renderInlineEdit/renderInlineCond são funções normais (não componentes JSX
+  // via <Tag/>) de propósito — assim o React não as trata como um "tipo" novo
+  // a cada re-render, evitando desmontar o <input> a cada tecla digitada.
+  const renderInlineEdit=(fid,iid)=>{const p=getProp(fid,iid);const isBest=p!=null&&bestByItem[iid]!=null&&p.preco===bestByItem[iid];const isEdit=editCell?.fid===fid&&editCell?.iid===iid;
     return isEdit?<input autoFocus type="number" value={tempVal} step="0.01" onChange={e=>setTempVal(e.target.value)} onBlur={commitCell} onKeyDown={e=>{if(e.key==="Enter")commitCell();if(e.key==="Escape")setEditCell(null);}} style={{width:88,textAlign:"right",border:`2px solid ${C.amber}`,borderRadius:6,padding:"4px 6px",fontFamily:"inherit",fontSize:13}}/>:
     <div onClick={()=>editavel&&startCellEdit(fid,iid)} style={{cursor:editavel?"pointer":"default",color:isBest?C.green:p?C.gray800:C.gray400,fontWeight:isBest?900:p?600:400,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"4px",borderRadius:5,minWidth:70}} onMouseEnter={e=>{if(editavel)e.currentTarget.style.background=C.gray100;}} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
       {isBest&&<span style={{fontSize:10,color:C.green}}>★</span>}{p?fmt(p.preco):"—"}
     </div>;
   };
 
-  const InlineCond=({fid,field})=>{const val=getCond(fid,field);const isEdit=editCond?.fid===fid&&editCond?.field===field;
+  const renderInlineCond=(fid,field)=>{const val=getCond(fid,field);const isEdit=editCond?.fid===fid&&editCond?.field===field;
     return isEdit?<input autoFocus value={tempCond} onChange={e=>setTempCond(e.target.value)} onBlur={commitCond} onKeyDown={e=>{if(e.key==="Enter")commitCond();if(e.key==="Escape")setEditCond(null);}} style={{width:"100%",textAlign:"center",border:`2px solid ${C.amber}`,borderRadius:5,padding:"3px 6px",fontFamily:"inherit",fontSize:12,boxSizing:"border-box"}}/>:
     <div onClick={()=>editavel&&startCondEdit(fid,field)} style={{cursor:editavel?"pointer":"default",color:val?C.gray800:C.gray400,fontSize:12,padding:"3px 6px",borderRadius:4,minHeight:22,display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{if(editavel)e.currentTarget.style.background=C.gray100;}} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
       {val||"—"}
@@ -1695,7 +1706,7 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
                     return <td key={f.id} style={{borderBottom:`1px solid ${C.gray200}`,borderLeft:`1px solid ${C.gray200}`,background:isBest?"rgba(22,163,74,.06)":"transparent",padding:0}}>
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"center",borderRight:`1px solid ${C.gray200}`}}>
-                          <InlineEdit fid={f.id} iid={item.id}/>
+                          {renderInlineEdit(f.id,item.id)}
                         </div>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"6px 4px"}}>
                           {total!=null?<span style={{fontWeight:isBest?800:600,color:isBest?C.green:C.gray700,fontSize:12}}>{isBest&&"★ "}{fmt(total)}</span>:<span style={{color:C.gray300,fontSize:12}}>—</span>}
@@ -1726,7 +1737,7 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
               {COND_FIELDS.map(({key,label})=><tr key={key} style={{background:C.white}}>
                 <td style={{padding:"7px 12px",fontSize:12,fontWeight:700,color:C.gray600,borderBottom:`1px solid ${C.gray200}`,borderTop:`1px solid ${C.gray200}`}} colSpan={3}>{label}</td>
                 {cotacao.fornecedores.map(f=><td key={f.id} style={{...TD,borderLeft:`1px solid ${C.gray200}`,padding:0}} colSpan={1}>
-                  <InlineCond fid={f.id} field={key}/>
+                  {renderInlineCond(f.id,key)}
                 </td>)}
               </tr>)}
             </tbody>
@@ -1805,8 +1816,8 @@ function ModalVincular({fornecedores,vinculados,onClose,onSave,itensCotacao}){
     return matchSeg&&matchText;
   });
   const toggle=(id)=>setSel(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
-  const FornCard=({f,highlight})=>{const s=sel.includes(f.id);return(
-    <div onClick={()=>toggle(f.id)} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",border:`2px solid ${s?C.navy:highlight?"#BFDBFE":C.gray200}`,borderRadius:9,cursor:"pointer",background:s?"#EEF1FB":highlight?"#F0F6FF":C.white,transition:"all .12s"}}>
+  const renderFornCard=(f,highlight)=>{const s=sel.includes(f.id);return(
+    <div key={f.id} onClick={()=>toggle(f.id)} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",border:`2px solid ${s?C.navy:highlight?"#BFDBFE":C.gray200}`,borderRadius:9,cursor:"pointer",background:s?"#EEF1FB":highlight?"#F0F6FF":C.white,transition:"all .12s"}}>
       <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${s?C.navy:C.gray300}`,background:s?C.navy:C.white,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2}}>{s&&<span style={{color:C.white,fontSize:11}}>✓</span>}</div>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontWeight:800,color:C.navy,fontSize:13}}>{f.nomeFantasia||f.razaoSocial}</div>
@@ -1836,11 +1847,11 @@ function ModalVincular({fornecedores,vinculados,onClose,onSave,itensCotacao}){
       </div>}
       {!search&&!segFiltro&&sugeridos.length>0&&<>
         <div style={{fontSize:10,fontWeight:900,color:C.blue,letterSpacing:0.5,marginBottom:6}}>⚡ SUGERIDOS PARA ESTA COTAÇÃO</div>
-        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>{sugeridos.map(f=><FornCard key={f.id} f={f} highlight/>)}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>{sugeridos.map(f=>renderFornCard(f,true))}</div>
         <div style={{fontSize:10,fontWeight:900,color:C.gray400,letterSpacing:0.5,marginBottom:6}}>TODOS</div>
       </>}
       <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12,maxHeight:240,overflowY:"auto"}}>
-        {filtrado.filter(f=>!(!search&&!segFiltro&&sugeridos.find(sg=>sg.id===f.id))).map(f=><FornCard key={f.id} f={f}/>)}
+        {filtrado.filter(f=>!(!search&&!segFiltro&&sugeridos.find(sg=>sg.id===f.id))).map(f=>renderFornCard(f,false))}
         {filtrado.length===0&&<div style={{textAlign:"center",padding:14,color:C.gray400,fontSize:13}}>Nenhum resultado</div>}
       </div>
       <div style={{borderTop:`1px solid ${C.gray200}`,paddingTop:10,marginBottom:12}}>
@@ -2183,6 +2194,16 @@ function LoginScreen(){
 }
 
 // ── Tela Usuários (admin) ─────────────────────────────────────────────────────
+function RoleOpt({val,onSet,k}){
+  const r=ROLES[k];
+  return(
+    <div onClick={()=>onSet(k)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",border:`2px solid ${val===k?r.color:C.gray200}`,borderRadius:8,cursor:"pointer",background:val===k?r.bg:C.white}}>
+      <div style={{width:12,height:12,borderRadius:"50%",border:`2px solid ${val===k?r.color:C.gray300}`,background:val===k?r.color:C.white,flexShrink:0}}/>
+      <div style={{fontWeight:800,fontSize:13,color:val===k?r.color:C.gray800}}>{r.label}</div>
+    </div>
+  );
+}
+
 function TelaUsuarios(){
   const {user:me}=useAuth();
   const [users,setUsers]=useState([]);
@@ -2214,13 +2235,6 @@ function TelaUsuarios(){
     await profilesApi.update(editing.id,{role:editing.role,cargo:editing.cargo,telefone:editing.telefone,ativo:editing.ativo});
     setEditing(null);await reload();
   };
-
-  const RoleOpt=({val,onSet,k})=>{const r=ROLES[k];return(
-    <div onClick={()=>onSet(k)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",border:`2px solid ${val===k?r.color:C.gray200}`,borderRadius:8,cursor:"pointer",background:val===k?r.bg:C.white}}>
-      <div style={{width:12,height:12,borderRadius:"50%",border:`2px solid ${val===k?r.color:C.gray300}`,background:val===k?r.color:C.white,flexShrink:0}}/>
-      <div style={{fontWeight:800,fontSize:13,color:val===k?r.color:C.gray800}}>{r.label}</div>
-    </div>
-  );};
 
   return <div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
