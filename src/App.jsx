@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useContext, createContext, Fragment } from "react";
 import {
   auth, getMyProfile, profilesApi, convitesUsuarioApi,
-  fornecedoresApi, clientesApi, planoContasApi, cotacoesApi,
+  fornecedoresApi, clientesApi, planoContasApi, cotacoesApi, storageApi,
   convitesFornecedorApi, pendentesFornecedorApi, portalFornecedorApi,
 } from "./lib/api";
 
@@ -194,7 +194,13 @@ function FormFornecedor({initial,onSave,onCancel}){
   const [f,setF]=useState(initial||EMPTY_F());
   const mob=useMobile();
   const set=(k)=>(v)=>setF(p=>({...p,[k]:v}));
-  const can=(f.tipoPessoa==="PJ"?f.razaoSocial:f.razaoSocial||f.nomeFantasia)&&(f.tipoPessoa==="PJ"?f.cnpj:f.cpf);
+  const canSave=(
+    f.razaoSocial.trim()&&
+    (f.tipoPessoa==="PJ"?f.cnpj.trim():f.cpf.trim())&&
+    f.whatsapp.trim()&&
+    f.cep.trim()&&f.logradouro.trim()&&f.cidade.trim()&&f.estado.trim()&&
+    f.segmentos.length>0
+  );
   const G=(cols="1fr 1fr")=>({display:"grid",gridTemplateColumns:mob?"1fr":cols,gap:"12px 14px",marginBottom:4});
   return <div>
     <SectionDivider>Identificação</SectionDivider>
@@ -219,20 +225,20 @@ function FormFornecedor({initial,onSave,onCancel}){
       <FormField label="E-mail Secundário"><Inp value={f.email2} onChange={set("email2")} type="email" placeholder="nfe@empresa.com.br"/></FormField>
       <FormField label="Telefone Fixo"><Inp value={f.telefone} onChange={set("telefone")} mask="tel" placeholder="(00) 0000-0000"/></FormField>
       <FormField label="Celular"><Inp value={f.celular} onChange={set("celular")} mask="tel" placeholder="(00) 00000-0000"/></FormField>
-      <FormField label="WhatsApp"><Inp value={f.whatsapp} onChange={set("whatsapp")} mask="tel" placeholder="(00) 00000-0000"/></FormField>
+      <FormField label="WhatsApp" required><Inp value={f.whatsapp} onChange={set("whatsapp")} mask="tel" placeholder="(00) 00000-0000"/></FormField>
       <FormField label="Site"><Inp value={f.site} onChange={set("site")} placeholder="www.empresa.com.br"/></FormField>
       <FormField label="Contato Principal"><Inp value={f.contatoNome} onChange={set("contatoNome")} placeholder="Nome"/></FormField>
       <FormField label="Cargo"><Inp value={f.contatoCargo} onChange={set("contatoCargo")} placeholder="Função"/></FormField>
     </div>
     <SectionDivider>Endereço</SectionDivider>
     <div style={G("120px 1fr 70px 1fr 1fr 70px")}>
-      <FormField label="CEP"><Inp value={f.cep} onChange={set("cep")} mask="cep" placeholder="00000-000"/></FormField>
-      <FormField label="Logradouro" col="2/5"><Inp value={f.logradouro} onChange={set("logradouro")} placeholder="Rua, Av..."/></FormField>
+      <FormField label="CEP" required><Inp value={f.cep} onChange={set("cep")} mask="cep" placeholder="00000-000"/></FormField>
+      <FormField label="Logradouro" required col="2/5"><Inp value={f.logradouro} onChange={set("logradouro")} placeholder="Rua, Av..."/></FormField>
       <FormField label="Número"><Inp value={f.numero} onChange={set("numero")}/></FormField>
       <FormField label="Complemento" col="1/3"><Inp value={f.complemento} onChange={set("complemento")} placeholder="Sala, Bloco..."/></FormField>
       <FormField label="Bairro" col="3/5"><Inp value={f.bairro} onChange={set("bairro")}/></FormField>
-      <FormField label="Cidade" col="5/7"><Inp value={f.cidade} onChange={set("cidade")}/></FormField>
-      <FormField label="UF"><Sel value={f.estado} onChange={set("estado")} options={ESTADOS} placeholder="UF"/></FormField>
+      <FormField label="Cidade" required col="5/7"><Inp value={f.cidade} onChange={set("cidade")}/></FormField>
+      <FormField label="UF" required><Sel value={f.estado} onChange={set("estado")} options={ESTADOS} placeholder="UF"/></FormField>
     </div>
     <SectionDivider>Comercial</SectionDivider>
     <div style={G("1fr 1fr 1fr")}>
@@ -273,7 +279,7 @@ function FormFornecedor({initial,onSave,onCancel}){
     <Inp value={f.obs} onChange={set("obs")} placeholder="Notas internas, histórico, condições especiais..." rows={3}/>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:24}}>
       <Btn onClick={onCancel} variant="ghost">Cancelar</Btn>
-      <Btn onClick={()=>can&&onSave(f)} variant="navy" disabled={!can}>{initial?"Salvar Alterações":"Cadastrar Fornecedor"}</Btn>
+      <Btn onClick={()=>canSave&&onSave(f)} variant="navy" disabled={!canSave}>{initial?"Salvar Alterações":"Cadastrar Fornecedor"}</Btn>
     </div>
   </div>;
 }
@@ -1235,6 +1241,12 @@ function generatePrintHTML(cotacao) {
     </tr>
   </table>
   <div style="margin-top:10px;font-size:8px;color:#d1d5db;text-align:right;">Gerado por A3 Cotações · ${new Date().toLocaleString("pt-BR")}</div>
+  ${(cotacao.anexos||[]).length>0?`
+  <div style="margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px;">
+    <div style="font-size:9px;font-weight:900;color:#1b2e8a;letter-spacing:0.8px;margin-bottom:6px;">📎 DOCUMENTOS ANEXADOS</div>
+    ${(cotacao.anexos||[]).map((a,i)=>`<div style="font-size:11px;color:#374151;padding:3px 0;border-bottom:1px solid #f3f4f6;">${String(i+1).padStart(2,"0")}. ${a.name} <span style="color:#9ca3af;">(${(a.size/1024).toFixed(0)} KB)</span></div>`).join("")}
+    <div style="font-size:9px;color:#9ca3af;margin-top:6px;">* Arquivos disponíveis no sistema A3 Cotações — acesse e imprima cada documento separadamente.</div>
+  </div>`:""}
   ${'</body>'}${'</html>'}`;
 }
 
@@ -1498,9 +1510,20 @@ function PedidoView({cotacao,onClose}){
 
 function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBack,onAddFornecedor,readOnly}){
   const {user:authUser}=useAuth();
-  const editavel=!readOnly&&cotacao.status!=="fechada"&&cotacao.status!=="aprovada"&&cotacao.status!=="rejeitada";
-  const podeAprovar=can(authUser,"approve_cotacao")&&cotacao.status==="fechada";
-  const cliente=(clientes||[]).find(c=>c.id===cotacao.clienteId);
+
+  // Guards para campos JSONB que podem vir como null do Supabase
+  const cot={
+    ...cotacao,
+    itens:       Array.isArray(cotacao?.itens)?cotacao.itens:[],
+    fornecedores:Array.isArray(cotacao?.fornecedores)?cotacao.fornecedores:[],
+    propostas:   Array.isArray(cotacao?.propostas)?cotacao.propostas:[],
+    condicoesFornecedor:Array.isArray(cotacao?.condicoesFornecedor)?cotacao.condicoesFornecedor:[],
+    anexos:      Array.isArray(cotacao?.anexos)?cotacao.anexos:[],
+  };
+  // Usa cot no lugar de cotacao dentro de todo o componente
+  const editavel=!readOnly&&cot.status!=="fechada"&&cot.status!=="aprovada"&&cot.status!=="rejeitada"&&cot.status!=="rascunho";
+  const podeAprovar=can(authUser,"approve_cotacao")&&cot.status==="fechada";
+  const cliente=(clientes||[]).find(c=>c.id===cot.clienteId);
   const [showVinc,setShowVinc]=useState(false);
   const [showPedido,setShowPedido]=useState(false);
   const [editCell,setEditCell]=useState(null);
@@ -1510,48 +1533,48 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
   const [editMeta,setEditMeta]=useState(false);
   const [metaDraft,setMetaDraft]=useState({});
 
-  const set=(k)=>(v)=>onUpdate({...cotacao,[k]:v});
-  const getProp=(fid,iid)=>cotacao.propostas.find(p=>p.fornecedorId===fid&&p.itemId===iid);
-  const getCond=(fid,field)=>(cotacao.condicoesFornecedor||[]).find(c=>c.fornecedorId===fid)?.[field]||"";
+  const set=(k)=>(v)=>onUpdate({...cot,[k]:v});
+  const getProp=(fid,iid)=>cot.propostas.find(p=>p.fornecedorId===fid&&p.itemId===iid);
+  const getCond=(fid,field)=>(cot.condicoesFornecedor||[]).find(c=>c.fornecedorId===fid)?.[field]||"";
 
   const startCellEdit=(fid,iid)=>{const p=getProp(fid,iid);setTempVal(p?.preco??"");setEditCell({fid,iid});};
   const commitCell=()=>{
     if(!editCell)return;
     const {fid,iid}=editCell;
     const val=tempVal===""?null:parseFloat(String(tempVal).replace(",","."));
-    const exist=cotacao.propostas.find(p=>p.fornecedorId===fid&&p.itemId===iid);
+    const exist=cot.propostas.find(p=>p.fornecedorId===fid&&p.itemId===iid);
     let np;
-    if(val==null||isNaN(val))np=cotacao.propostas.filter(p=>!(p.fornecedorId===fid&&p.itemId===iid));
-    else if(exist)np=cotacao.propostas.map(p=>p.fornecedorId===fid&&p.itemId===iid?{...p,preco:val}:p);
-    else np=[...cotacao.propostas,{fornecedorId:fid,itemId:iid,preco:val}];
-    onUpdate({...cotacao,propostas:np});setEditCell(null);
+    if(val==null||isNaN(val))np=cot.propostas.filter(p=>!(p.fornecedorId===fid&&p.itemId===iid));
+    else if(exist)np=cot.propostas.map(p=>p.fornecedorId===fid&&p.itemId===iid?{...p,preco:val}:p);
+    else np=[...cot.propostas,{fornecedorId:fid,itemId:iid,preco:val}];
+    onUpdate({...cot,propostas:np});setEditCell(null);
   };
 
   const startCondEdit=(fid,field)=>{setTempCond(getCond(fid,field));setEditCond({fid,field});};
   const commitCond=()=>{
     if(!editCond)return;
     const {fid,field}=editCond;
-    const arr=cotacao.condicoesFornecedor||[];
+    const arr=cot.condicoesFornecedor||[];
     const exist=arr.find(c=>c.fornecedorId===fid);
     const nc=exist?arr.map(c=>c.fornecedorId===fid?{...c,[field]:tempCond}:c):[...arr,{fornecedorId:fid,[field]:tempCond}];
-    onUpdate({...cotacao,condicoesFornecedor:nc});setEditCond(null);
+    onUpdate({...cot,condicoesFornecedor:nc});setEditCond(null);
   };
 
-  const removeForn=(fid)=>onUpdate({...cotacao,fornecedores:cotacao.fornecedores.filter(f=>f.id!==fid),propostas:cotacao.propostas.filter(p=>p.fornecedorId!==fid),condicoesFornecedor:(cotacao.condicoesFornecedor||[]).filter(c=>c.fornecedorId!==fid)});
+  const removeForn=(fid)=>onUpdate({...cot,fornecedores:cot.fornecedores.filter(f=>f.id!==fid),propostas:cot.propostas.filter(p=>p.fornecedorId!==fid),condicoesFornecedor:(cot.condicoesFornecedor||[]).filter(c=>c.fornecedorId!==fid)});
 
   const exportPDF=()=>setShowPedido(true);
 
   const handleDelete=()=>{
-    if(window.confirm("Excluir esta cotação? A ação não pode ser desfeita.")) onDelete(cotacao.id);
+    if(window.confirm("Excluir esta cotação? A ação não pode ser desfeita.")) onDelete(cot.id);
   };
 
   const bestByItem={};
-  cotacao.itens.forEach(item=>{const ps=cotacao.fornecedores.map(f=>getProp(f.id,item.id)?.preco).filter(v=>v!=null);if(ps.length)bestByItem[item.id]=Math.min(...ps);});
-  const totalF=(fid)=>cotacao.itens.reduce((s,item)=>{const p=getProp(fid,item.id);return s+(p?p.preco*item.quantidade:0);},0);
-  const totals=cotacao.fornecedores.map(f=>({id:f.id,total:totalF(f.id)})).filter(t=>t.total>0);
+  cot.itens.forEach(item=>{const ps=cot.fornecedores.map(f=>getProp(f.id,item.id)?.preco).filter(v=>v!=null);if(ps.length)bestByItem[item.id]=Math.min(...ps);});
+  const totalF=(fid)=>cot.itens.reduce((s,item)=>{const p=getProp(fid,item.id);return s+(p?p.preco*item.quantidade:0);},0);
+  const totals=cot.fornecedores.map(f=>({id:f.id,total:totalF(f.id)})).filter(t=>t.total>0);
   const bestTotal=totals.length?Math.min(...totals.map(t=>t.total)):null;
-  const winner=bestTotal!=null?cotacao.fornecedores.find(f=>totalF(f.id)===bestTotal):null;
-  const preench=cotacao.fornecedores.length&&cotacao.itens.length?Math.round((cotacao.propostas.length/(cotacao.fornecedores.length*cotacao.itens.length))*100):0;
+  const winner=bestTotal!=null?cot.fornecedores.find(f=>totalF(f.id)===bestTotal):null;
+  const preench=cot.fornecedores.length&&cot.itens.length?Math.round((cot.propostas.length/(cot.fornecedores.length*cot.itens.length))*100):0;
 
   const TH={padding:"10px 12px",textAlign:"center",fontWeight:800,fontSize:11,borderBottom:`1px solid ${C.gray200}`,letterSpacing:0.4};
   const TD={padding:"4px 8px",textAlign:"center",borderBottom:`1px solid ${C.gray200}`,fontSize:13};
@@ -1588,20 +1611,20 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"18px 24px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
         <div>
           <div style={{fontSize:11,fontWeight:800,color:C.amberLight,letterSpacing:1,marginBottom:4}}>FORMULÁRIO DE COMPRA</div>
-          <div style={{fontSize:20,fontWeight:900,color:C.white,lineHeight:1.2}}>{cotacao.titulo}</div>
+          <div style={{fontSize:20,fontWeight:900,color:C.white,lineHeight:1.2}}>{cot.titulo}</div>
           <div style={{fontSize:12,color:"rgba(255,255,255,.55)",marginTop:4}}>
-            {cotacao.numeroPedido} · {cotacao.dataCriacao}{cliente?` · ${cliente.nomeFantasia||cliente.razaoSocial}`:""}
+            {cot.numeroPedido} · {cot.dataCriacao}{cliente?` · ${cliente.nomeFantasia||cliente.razaoSocial}`:""}
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-          <Badge status={cotacao.status}/>
+          <Badge status={cot.status}/>
           {podeAprovar&&<>
-            <Btn onClick={()=>onUpdate({...cotacao,status:"aprovada",_aprovar:true})} variant="success" size="sm">✔ Aprovar</Btn>
-            <Btn onClick={()=>onUpdate({...cotacao,status:"rejeitada",_aprovar:true})} variant="danger" size="sm">✕ Rejeitar</Btn>
+            <Btn onClick={()=>onUpdate({...cot,status:"aprovada",_aprovar:true})} variant="success" size="sm">✔ Aprovar</Btn>
+            <Btn onClick={()=>onUpdate({...cot,status:"rejeitada",_aprovar:true})} variant="danger" size="sm">✕ Rejeitar</Btn>
           </>}
-          {!readOnly&&(cotacao.status!=="fechada"&&cotacao.status!=="aprovada"&&cotacao.status!=="rejeitada"
-            ?<Btn onClick={()=>onUpdate({...cotacao,status:"fechada"})} variant="success" size="sm">✔ Encerrar</Btn>
-            :cotacao.status==="fechada"?<Btn onClick={()=>onUpdate({...cotacao,status:"cotando"})} variant="light" size="sm">Reabrir</Btn>:null)}
+          {!readOnly&&(cot.status!=="fechada"&&cot.status!=="aprovada"&&cot.status!=="rejeitada"
+            ?<Btn onClick={()=>onUpdate({...cot,status:"fechada"})} variant="success" size="sm">✔ Encerrar</Btn>
+            :cot.status==="fechada"?<Btn onClick={()=>onUpdate({...cot,status:"cotando"})} variant="light" size="sm">Reabrir</Btn>:null)}
           {!readOnly&&<Btn onClick={()=>{setMetaDraft({...cotacao});setEditMeta(true);}} variant="light" size="sm">✏ Editar</Btn>}
           {!readOnly&&can(authUser,"create")&&<Btn onClick={handleDelete} variant="danger" size="sm">🗑</Btn>}
           <Btn onClick={()=>setShowPedido(true)} variant="navy" size="sm">👁 Ver / Imprimir Pedido</Btn>
@@ -1609,39 +1632,39 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
       </div>
       {/* Metadados */}
       <div style={{padding:"16px 24px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:"12px 24px",borderBottom:`1px solid ${C.gray200}`}}>
-        {cotacao.responsavel&&<div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>RESPONSÁVEL</div><div style={{fontSize:14,fontWeight:700,color:C.gray800}}>{cotacao.responsavel}</div></div>}
-        {cotacao.aprovador&&<div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>APROVADOR</div><div style={{fontSize:14,fontWeight:700,color:C.gray800}}>{cotacao.aprovador}</div></div>}
-        {cotacao.centrosCusto&&<div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>TIPO DE DESPESA</div>
-          <span style={{fontSize:13,fontWeight:800,color:cotacao.centrosCusto==="Ordinária"?C.navy:"#7C3AED",background:cotacao.centrosCusto==="Ordinária"?"#EEF1FB":"#F5F3FF",padding:"2px 10px",borderRadius:20}}>
-            {cotacao.centrosCusto==="Ordinária"?"📅":"⚡"} {cotacao.centrosCusto}
+        {cot.responsavel&&<div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>RESPONSÁVEL</div><div style={{fontSize:14,fontWeight:700,color:C.gray800}}>{cot.responsavel}</div></div>}
+        {cot.aprovador&&<div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>APROVADOR</div><div style={{fontSize:14,fontWeight:700,color:C.gray800}}>{cot.aprovador}</div></div>}
+        {cot.centrosCusto&&<div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>TIPO DE DESPESA</div>
+          <span style={{fontSize:13,fontWeight:800,color:cot.centrosCusto==="Ordinária"?C.navy:"#7C3AED",background:cot.centrosCusto==="Ordinária"?"#EEF1FB":"#F5F3FF",padding:"2px 10px",borderRadius:20}}>
+            {cot.centrosCusto==="Ordinária"?"📅":"⚡"} {cot.centrosCusto}
           </span>
         </div>}
-        {cotacao.planoContas&&<div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>PLANO DE CONTAS</div><PlanoContasLabel id={cotacao.planoContas}/></div>}
+        {cot.planoContas&&<div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>PLANO DE CONTAS</div><PlanoContasLabel id={cot.planoContas}/></div>}
         <div style={{display:"flex",gap:14}}>
-          <div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>URGENTE</div><div style={{fontSize:14,fontWeight:700,color:cotacao.urgente?C.red:C.gray400}}>{cotacao.urgente?"SIM":"NÃO"}</div></div>
-          <div style={{marginLeft:16}}><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>NECESSÁRIO</div><div style={{fontSize:14,fontWeight:700,color:cotacao.necessario?C.green:C.gray400}}>{cotacao.necessario?"SIM":"NÃO"}</div></div>
+          <div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>URGENTE</div><div style={{fontSize:14,fontWeight:700,color:cot.urgente?C.red:C.gray400}}>{cot.urgente?"SIM":"NÃO"}</div></div>
+          <div style={{marginLeft:16}}><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>NECESSÁRIO</div><div style={{fontSize:14,fontWeight:700,color:cot.necessario?C.green:C.gray400}}>{cot.necessario?"SIM":"NÃO"}</div></div>
         </div>
       </div>
       {/* Descrição + Justificativa */}
-      {(cotacao.descricaoAquisicao||cotacao.justificativa)&&<div style={{padding:"14px 24px",display:"grid",gridTemplateColumns:cotacao.descricaoAquisicao&&cotacao.justificativa?"1fr 1fr":"1fr",gap:16}}>
-        {cotacao.descricaoAquisicao&&<div><div style={{fontSize:10,fontWeight:900,color:C.navy,letterSpacing:0.6,marginBottom:4}}>DESCRIÇÃO DA AQUISIÇÃO</div><div style={{fontSize:13,color:C.gray600,lineHeight:1.6}}>{cotacao.descricaoAquisicao}</div></div>}
-        {cotacao.justificativa&&<div><div style={{fontSize:10,fontWeight:900,color:C.navy,letterSpacing:0.6,marginBottom:4}}>JUSTIFICATIVA</div><div style={{fontSize:13,color:C.gray600,lineHeight:1.6}}>{cotacao.justificativa}</div></div>}
+      {(cot.descricaoAquisicao||cot.justificativa)&&<div style={{padding:"14px 24px",display:"grid",gridTemplateColumns:cot.descricaoAquisicao&&cot.justificativa?"1fr 1fr":"1fr",gap:16}}>
+        {cot.descricaoAquisicao&&<div><div style={{fontSize:10,fontWeight:900,color:C.navy,letterSpacing:0.6,marginBottom:4}}>DESCRIÇÃO DA AQUISIÇÃO</div><div style={{fontSize:13,color:C.gray600,lineHeight:1.6}}>{cot.descricaoAquisicao}</div></div>}
+        {cot.justificativa&&<div><div style={{fontSize:10,fontWeight:900,color:C.navy,letterSpacing:0.6,marginBottom:4}}>JUSTIFICATIVA</div><div style={{fontSize:13,color:C.gray600,lineHeight:1.6}}>{cot.justificativa}</div></div>}
       </div>}
     </Card>
 
     {/* Progresso */}
-    {cotacao.fornecedores.length>0&&<div style={{marginBottom:20}}>
+    {cot.fornecedores.length>0&&<div style={{marginBottom:20}}>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:700,color:C.gray400,marginBottom:4}}><span>Preenchimento das propostas</span><span>{preench}%</span></div>
       <div style={{height:5,background:C.gray200,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${preench}%`,background:`linear-gradient(90deg,${C.amber},${C.amberLight})`,transition:"width .4s",borderRadius:3}}/></div>
     </div>}
 
     {/* Fornecedores + botão */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-      <span style={{fontSize:11,fontWeight:800,color:C.gray600,letterSpacing:0.5}}>FORNECEDORES ({cotacao.fornecedores.length})</span>
+      <span style={{fontSize:11,fontWeight:800,color:C.gray600,letterSpacing:0.5}}>FORNECEDORES ({cot.fornecedores.length})</span>
       {editavel&&<Btn onClick={()=>setShowVinc(true)} variant="primary" size="sm">＋ Vincular Fornecedor</Btn>}
     </div>
 
-    {cotacao.fornecedores.length===0?<Card style={{textAlign:"center",padding:32,marginBottom:20}}>
+    {cot.fornecedores.length===0?<Card style={{textAlign:"center",padding:32,marginBottom:20}}>
       <div style={{fontSize:32,marginBottom:8}}>🏭</div>
       <div style={{fontSize:14,fontWeight:700,color:C.gray600,marginBottom:12}}>Vincule fornecedores para iniciar a comparação</div>
       <Btn onClick={()=>setShowVinc(true)} variant="navy" size="sm">＋ Vincular Fornecedor</Btn>
@@ -1649,7 +1672,7 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
 
       {/* Chips fornecedores */}
       <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
-        {cotacao.fornecedores.map((f,i)=><div key={f.id} style={{display:"flex",alignItems:"center",gap:6,background:C.gray50,border:`1.5px solid ${C.gray200}`,borderRadius:8,padding:"5px 10px"}}>
+        {cot.fornecedores.map((f,i)=><div key={f.id} style={{display:"flex",alignItems:"center",gap:6,background:C.gray50,border:`1.5px solid ${C.gray200}`,borderRadius:8,padding:"5px 10px"}}>
           <span style={{width:20,height:20,background:C.navy,color:C.white,borderRadius:"50%",fontSize:10,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</span>
           <div><div style={{fontSize:13,fontWeight:800,color:C.navy,lineHeight:1.1}}>{f.nomeFantasia||f.razaoSocial}</div><div style={{fontSize:10,color:C.gray400}}>{f.cnpj||f.cpf}</div></div>
           {editavel&&<button onClick={()=>removeForn(f.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.gray300,fontSize:14,padding:0,lineHeight:1}}>✕</button>}
@@ -1666,13 +1689,13 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
         </div>
         <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
           <style>{`.sticky-col{position:sticky;left:0;z-index:2;background:inherit;}.sticky-col::after{content:"";position:absolute;top:0;right:-4px;bottom:0;width:4px;background:linear-gradient(to right,rgba(0,0,0,.06),transparent);pointer-events:none;}`}</style>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth: 160 + cotacao.fornecedores.length * 180}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth: 160 + cot.fornecedores.length * 180}}>
             <thead>
               <tr style={{background:C.gray50}}>
                 <th className="sticky-col" style={{...TH,textAlign:"left",minWidth:160,color:C.gray600,background:C.gray50}}>ITEM / DESCRIÇÃO</th>
                 <th style={{...TH,minWidth:48,color:C.gray600}}>UNID</th>
                 <th style={{...TH,minWidth:48,color:C.gray600}}>QTD</th>
-                {cotacao.fornecedores.map((f,i)=><th key={f.id} style={{...TH,minWidth:150,borderLeft:`1px solid ${C.gray200}`}}>
+                {cot.fornecedores.map((f,i)=><th key={f.id} style={{...TH,minWidth:150,borderLeft:`1px solid ${C.gray200}`}}>
                   <div style={{display:"flex",flexDirection:"column",gap:1}}>
                     <span style={{color:C.navy,fontWeight:900,fontSize:11}}><span style={{background:C.navy,color:C.white,borderRadius:"50%",width:15,height:15,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:9,marginRight:4,verticalAlign:"middle"}}>{i+1}</span>{f.nomeFantasia||f.razaoSocial}</span>
                     <span style={{fontSize:9,color:C.gray400,fontWeight:600}}>{f.cnpj||f.cpf||""}</span>
@@ -1682,7 +1705,7 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
               {/* Sub-header valor unit / total */}
               <tr style={{background:"#F0F2F8"}}>
                 <td colSpan={3} style={{padding:"4px 12px",fontSize:10,fontWeight:700,color:C.gray400,letterSpacing:0.4}}></td>
-                {cotacao.fornecedores.map(f=><td key={f.id} style={{borderLeft:`1px solid ${C.gray200}`}}>
+                {cot.fornecedores.map(f=><td key={f.id} style={{borderLeft:`1px solid ${C.gray200}`}}>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
                     <div style={{textAlign:"center",fontSize:9,fontWeight:800,color:C.gray500,padding:"3px 6px",letterSpacing:0.3}}>VL. UNIT</div>
                     <div style={{textAlign:"center",fontSize:9,fontWeight:800,color:C.gray500,padding:"3px 6px",borderLeft:`1px solid ${C.gray200}`,letterSpacing:0.3}}>TOTAL</div>
@@ -1691,7 +1714,7 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
               </tr>
             </thead>
             <tbody>
-              {cotacao.itens.map((item,idx)=>{
+              {cot.itens.map((item,idx)=>{
                 const bestPU=Object.entries(bestByItem).find(([k])=>k===item.id)?.[1];
                 return <tr key={item.id} style={{background:idx%2===0?C.white:C.gray50}}>
                   <td className="sticky-col" style={{padding:"9px 12px",borderBottom:`1px solid ${C.gray200}`,fontWeight:600,color:C.gray800,background:idx%2===0?C.white:C.gray50}}>
@@ -1699,7 +1722,7 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
                   </td>
                   <td style={{padding:"9px 8px",borderBottom:`1px solid ${C.gray200}`,textAlign:"center",color:C.gray500,fontSize:12}}>{item.unidade}</td>
                   <td style={{padding:"9px 8px",borderBottom:`1px solid ${C.gray200}`,textAlign:"center",fontWeight:700,color:C.gray700}}>{item.quantidade}</td>
-                  {cotacao.fornecedores.map(f=>{
+                  {cot.fornecedores.map(f=>{
                     const p=getProp(f.id,item.id);
                     const isBest=p!=null&&bestByItem[item.id]!=null&&p.preco===bestByItem[item.id];
                     const total=p?p.preco*item.quantidade:null;
@@ -1719,7 +1742,7 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
               {/* Linha TOTAL */}
               <tr style={{background:"#EEF1FB"}}>
                 <td className="sticky-col" colSpan={3} style={{padding:"10px 12px",fontWeight:900,color:C.navy,fontSize:12,letterSpacing:0.5,background:"#EEF1FB"}}>TOTAL GERAL</td>
-                {cotacao.fornecedores.map(f=>{
+                {cot.fornecedores.map(f=>{
                   const total=totalF(f.id);
                   const isBestT=bestTotal!=null&&total===bestTotal&&total>0;
                   return <td key={f.id} style={{borderLeft:`1px solid ${C.gray200}`,padding:0}}>
@@ -1733,10 +1756,10 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
                 })}
               </tr>
               {/* Seção condições por fornecedor */}
-              <tr><td colSpan={3+cotacao.fornecedores.length} style={{padding:"6px 12px",background:"#F0F2F8",fontSize:10,fontWeight:900,color:C.navy,letterSpacing:0.8}}>CONDIÇÕES COMERCIAIS {editavel&&<span style={{fontWeight:500,color:C.gray400}}> — clique para preencher</span>}</td></tr>
+              <tr><td colSpan={3+cot.fornecedores.length} style={{padding:"6px 12px",background:"#F0F2F8",fontSize:10,fontWeight:900,color:C.navy,letterSpacing:0.8}}>CONDIÇÕES COMERCIAIS {editavel&&<span style={{fontWeight:500,color:C.gray400}}> — clique para preencher</span>}</td></tr>
               {COND_FIELDS.map(({key,label})=><tr key={key} style={{background:C.white}}>
                 <td style={{padding:"7px 12px",fontSize:12,fontWeight:700,color:C.gray600,borderBottom:`1px solid ${C.gray200}`,borderTop:`1px solid ${C.gray200}`}} colSpan={3}>{label}</td>
-                {cotacao.fornecedores.map(f=><td key={f.id} style={{...TD,borderLeft:`1px solid ${C.gray200}`,padding:0}} colSpan={1}>
+                {cot.fornecedores.map(f=><td key={f.id} style={{...TD,borderLeft:`1px solid ${C.gray200}`,padding:0}} colSpan={1}>
                   {renderInlineCond(f.id,key)}
                 </td>)}
               </tr>)}
@@ -1763,11 +1786,45 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
       </Card>}
     </>}
 
+    {/* Seção de Anexos */}
+    <Card style={{marginTop:20,padding:"16px 20px"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+        <div style={{fontSize:12,fontWeight:900,color:C.navy,letterSpacing:0.5}}>📎 ANEXOS ({cot.anexos.length})</div>
+        {editavel&&<label style={{cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,background:C.navy,color:C.white,borderRadius:7,padding:"5px 12px",fontSize:12,fontWeight:700}}>
+          ＋ Adicionar PDF
+          <input type="file" accept="application/pdf,image/jpeg,image/png" multiple style={{display:"none"}} onChange={async e=>{
+            const files=Array.from(e.target.files);
+            if(!files.length)return;
+            const novos=[];
+            for(const file of files){
+              if(file.size>10*1024*1024){alert(`"${file.name}" excede 10MB.`);continue;}
+              const meta=await storageApi.upload(cot.id,file);
+              novos.push(meta);
+            }
+            if(novos.length) onUpdate({...cot,anexos:[...cot.anexos,...novos]});
+            e.target.value="";
+          }}/>
+        </label>}
+      </div>
+      {cot.anexos.length===0?<div style={{fontSize:13,color:C.gray400,textAlign:"center",padding:"12px 0"}}>Nenhum anexo ainda — adicione orçamentos, fotos ou outros documentos (PDF/JPG)</div>:
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {cot.anexos.map((a,idx)=>(
+          <div key={a.path} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:C.gray50,borderRadius:7,border:`1px solid ${C.gray200}`}}>
+            <span style={{fontSize:16}}>📄</span>
+            <span style={{flex:1,fontSize:13,fontWeight:600,color:C.gray800,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{String(idx+1).padStart(2,"0")}. {a.name}</span>
+            <span style={{fontSize:11,color:C.gray400}}>{(a.size/1024).toFixed(0)} KB</span>
+            <button onClick={async()=>{const url=await storageApi.getSignedUrl(a.path);window.open(url,"_blank");}} style={{background:C.navy,color:C.white,border:"none",borderRadius:5,padding:"3px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Abrir</button>
+            {editavel&&<button onClick={()=>{if(window.confirm("Remover este anexo?"))onUpdate({...cot,anexos:cot.anexos.filter(x=>x.path!==a.path)});}} style={{background:"none",border:"none",cursor:"pointer",color:C.red,fontSize:14,padding:"2px 4px"}}>✕</button>}
+          </div>
+        ))}
+      </div>}
+    </Card>
+
     {/* Modal vincular */}
-    {showVinc&&<ModalVincular fornecedores={allFornecedores} vinculados={cotacao.fornecedores} itensCotacao={cotacao.itens} onClose={()=>setShowVinc(false)} onSave={(fSel,novoF)=>{
-      let fUpd=[...cotacao.fornecedores,...(fSel||[])];
+    {showVinc&&<ModalVincular fornecedores={allFornecedores} vinculados={cot.fornecedores} itensCotacao={cot.itens} onClose={()=>setShowVinc(false)} onSave={(fSel,novoF)=>{
+      let fUpd=[...cot.fornecedores,...(fSel||[])];
       if(novoF){onAddFornecedor(novoF);fUpd=[...fUpd,novoF];}
-      onUpdate({...cotacao,fornecedores:fUpd,status:"cotando"});setShowVinc(false);
+      onUpdate({...cot,fornecedores:fUpd,status:"cotando"});setShowVinc(false);
     }}/>}
 
     {/* Modal editar meta */}
@@ -1790,10 +1847,10 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
       />
       <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:24}}>
         <Btn onClick={()=>setEditMeta(false)} variant="ghost">Cancelar</Btn>
-        <Btn onClick={()=>{onUpdate({...cotacao,...metaDraft});setEditMeta(false);}} variant="navy">Salvar</Btn>
+        <Btn onClick={()=>{onUpdate({...cot,...metaDraft});setEditMeta(false);}} variant="navy">Salvar</Btn>
       </div>
     </Modal>}
-    {showPedido&&<PedidoView cotacao={cotacao} onClose={()=>setShowPedido(false)}/>}
+    {showPedido&&<PedidoView cotacao={cot} onClose={()=>setShowPedido(false)}/>}
   </div>;
 }
 function ModalVincular({fornecedores,vinculados,onClose,onSave,itensCotacao}){
@@ -2481,6 +2538,7 @@ export default function App(){
         ::-webkit-scrollbar-thumb{background:${C.gray200};border-radius:2px;}
         button,input,select,textarea{font-family:'DM Sans',sans-serif;}
         @media print{
+          @page{size:A4 landscape;margin:10mm;}
           body>*{display:none!important;}
           #a3-print-area{display:block!important;position:fixed!important;inset:0!important;z-index:99999!important;background:#fff!important;overflow:auto!important;}
           #a3-print-area .no-print{display:none!important;}
