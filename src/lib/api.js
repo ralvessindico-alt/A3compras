@@ -125,33 +125,6 @@ export const planoContasApi = {
 };
 
 // ── Cotações ──────────────────────────────────────────────────────────────
-export const cotacoesApi = {
-  list: async () => {
-    const { data, error } = await supabase.from("cotacoes").select("*").order("created_at", { ascending: false });
-    if (error) throw error;
-    return listFromDb(data);
-  },
-  create: async (obj) => {
-    const payload = toDb(obj);
-    if (!payload.numero_pedido) delete payload.numero_pedido;
-    const { data, error } = await supabase.from("cotacoes").insert(payload).select().single();
-    if (error) throw error;
-    return fromDb(data);
-  },
-  update: async (id, fields) => {
-    const { data, error } = await supabase.from("cotacoes").update(toDb(fields)).eq("id", id).select().single();
-    if (error) throw error;
-    return fromDb(data);
-  },
-  delete: async (id) => {
-    const { error } = await supabase.from("cotacoes").delete().eq("id", id);
-    if (error) throw error;
-  },
-  aprovar: async (id, status) => {
-    const { error } = await supabase.rpc("aprovar_cotacao", { p_id: id, p_status: status });
-    if (error) throw error;
-  },
-};
 
 // ── Convites de Fornecedor (auto-cadastro) ─────────────────────────────────
 export const convitesFornecedorApi = {
@@ -201,3 +174,61 @@ export const portalFornecedorApi = {
 };
 
 export const _internal = { toDb, fromDb, listFromDb };
+
+// ── Supabase Storage — Anexos de Cotação ─────────────────────────────────────
+const BUCKET = "cotacoes-anexos";
+
+export const storageApi = {
+  upload: async (cotacaoId, file) => {
+    const ext = file.name.split(".").pop();
+    const path = `${cotacaoId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const { data, error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false });
+    if (error) throw error;
+    return { path: data.path, name: file.name, size: file.size, type: file.type };
+  },
+  getSignedUrl: async (path) => {
+    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
+    if (error) throw error;
+    return data.signedUrl;
+  },
+  delete: async (path) => {
+    const { error } = await supabase.storage.from(BUCKET).remove([path]);
+    if (error) throw error;
+  },
+};
+
+// Sanitize UUID fields that shouldn't be empty strings
+const UUID_FIELDS_COT = ["cliente_id", "plano_contas", "criado_por"];
+function sanitizeUuids(payload) {
+  for (const f of UUID_FIELDS_COT) if (payload[f] === "") payload[f] = null;
+  return payload;
+}
+
+export const cotacoesApi = {
+  list: async () => {
+    const { data, error } = await supabase.from("cotacoes").select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    return listFromDb(data);
+  },
+  create: async (obj) => {
+    const payload = sanitizeUuids(toDb(obj));
+    if (!payload.numero_pedido) delete payload.numero_pedido;
+    const { data, error } = await supabase.from("cotacoes").insert(payload).select().single();
+    if (error) throw error;
+    return fromDb(data);
+  },
+  update: async (id, fields) => {
+    const payload = sanitizeUuids(toDb(fields));
+    const { data, error } = await supabase.from("cotacoes").update(payload).eq("id", id).select().single();
+    if (error) throw error;
+    return fromDb(data);
+  },
+  delete: async (id) => {
+    const { error } = await supabase.from("cotacoes").delete().eq("id", id);
+    if (error) throw error;
+  },
+  aprovar: async (id, status) => {
+    const { error } = await supabase.rpc("aprovar_cotacao", { p_id: id, p_status: status });
+    if (error) throw error;
+  },
+};
