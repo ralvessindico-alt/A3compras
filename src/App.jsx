@@ -1673,17 +1673,25 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <Badge status={cot.status}/>
-          {/* Fluxo de status — síndico/admin aprovam; comprador/admin gerenciam restante */}
+          {/* Fluxo de status */}
           {podeAprovar&&<>
             <Btn onClick={()=>onUpdate({...cot,status:"aprovada",_aprovar:true})} variant="success" size="sm">✔ Aprovar</Btn>
             <Btn onClick={()=>onUpdate({...cot,status:"rejeitada",_aprovar:true})} variant="danger" size="sm">✕ Rejeitar</Btn>
           </>}
-          {!readOnly&&cot.status==="aprovada"&&<Btn onClick={()=>onUpdate({...cot,status:"pendente"})} variant="light" size="sm">📌 Marcar Pendente</Btn>}
-          {!readOnly&&cot.status==="pendente"&&<Btn onClick={()=>onUpdate({...cot,status:"concluida"})} variant="success" size="sm">✅ Concluir</Btn>}
-          {!readOnly&&["aberta","cotando","rascunho"].includes(cot.status)&&
+          {/* Rascunho: publicar (vira "Aguardando Fornecedores") ou excluir */}
+          {!readOnly&&cot.status==="rascunho"&&
+            <Btn onClick={()=>onUpdate({...cot,status:"aberta"})} variant="primary" size="sm">🚀 Publicar</Btn>}
+          {/* Em andamento: encerrar */}
+          {!readOnly&&["aberta","cotando"].includes(cot.status)&&
             <Btn onClick={()=>onUpdate({...cot,status:"fechada"})} variant="success" size="sm">✔ Encerrar</Btn>}
+          {/* Encerrada: reabrir */}
           {!readOnly&&cot.status==="fechada"&&
             <Btn onClick={()=>onUpdate({...cot,status:"cotando"})} variant="light" size="sm">↩ Reabrir</Btn>}
+          {/* Pós-aprovação */}
+          {!readOnly&&cot.status==="aprovada"&&
+            <Btn onClick={()=>onUpdate({...cot,status:"pendente"})} variant="light" size="sm">📌 Pendente de Execução</Btn>}
+          {!readOnly&&cot.status==="pendente"&&
+            <Btn onClick={()=>onUpdate({...cot,status:"concluida"})} variant="success" size="sm">✅ Concluir</Btn>}
           {!readOnly&&<Btn onClick={()=>{setMetaDraft({...cotacao});setEditMeta(true);}} variant="light" size="sm">✏ Editar</Btn>}
           {!readOnly&&can(authUser,"create")&&<Btn onClick={handleDelete} variant="danger" size="sm">🗑</Btn>}
           <Btn onClick={()=>setShowPedido(true)} variant="navy" size="sm">👁 Ver / Imprimir Pedido</Btn>
