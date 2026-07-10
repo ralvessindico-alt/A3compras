@@ -236,18 +236,21 @@ function sanitizeUuids(payload) {
   return payload;
 }
 
-// Colunas válidas da tabela cotacoes — campos fora desta lista são descartados
-// antes do envio para evitar erro 400 quando a cotação tem campos extras no estado JS.
-const COT_COLS = new Set([
+// Colunas originais do schema — sempre existem, independente de migrations extras
+const COT_COLS_SAFE = new Set([
   "titulo","descricao_aquisicao","justificativa","centros_custo","plano_contas",
   "classificacao","urgente","necessario","status","responsavel","aprovador",
-  "cliente_id","criado_por","data_criacao","data_aprovacao","numero_pedido",
+  "cliente_id","criado_por","data_criacao","numero_pedido",
   "itens","fornecedores","propostas","condicoes_fornecedor",
+]);
+// Colunas adicionadas por migrations opcionais
+const COT_COLS_EXTRA = new Set([
   "historico","token_aprovacao","assinatura_sindico","anexos","os_vinculadas",
 ]);
+const COT_COLS = new Set([...COT_COLS_SAFE, ...COT_COLS_EXTRA]);
 
-function stripUnknownCols(payload) {
-  return Object.fromEntries(Object.entries(payload).filter(([k])=>COT_COLS.has(k)));
+function stripUnknownCols(payload, colSet = COT_COLS) {
+  return Object.fromEntries(Object.entries(payload).filter(([k]) => colSet.has(k)));
 }
 
 export const cotacoesApi = {
@@ -265,9 +268,14 @@ export const cotacoesApi = {
   },
   update: async (id, fields) => {
     const payload = stripUnknownCols(sanitizeUuids(toDb(fields)));
+    // Tenta update completo (funciona se todas as migrations foram rodadas)
     const { data, error } = await supabase.from("cotacoes").update(payload).eq("id", id).select().single();
-    if (error) throw error;
-    return fromDb(data);
+    if (!error) return fromDb(data);
+    // Fallback: se falhou (colunas extras não existem no banco), usa só colunas originais
+    const safePayload = stripUnknownCols(payload, COT_COLS_SAFE);
+    const { data: d2, error: e2 } = await supabase.from("cotacoes").update(safePayload).eq("id", id).select().single();
+    if (e2) throw e2;
+    return fromDb(d2);
   },
   delete: async (id) => {
     const { error } = await supabase.from("cotacoes").delete().eq("id", id);
@@ -279,7 +287,40 @@ export const cotacoesApi = {
   },
 };
 
-// ── Usuários — criação direta via Edge Function (sem convite por email) ────
+// ── Relacionamento usuário ↔ cliente (controle de acesso por condomínio) ───
+export const userClientesApi = {
+  // Admin: lista clientes atribuídos a um usuário específico
+  listForUser: async (userId) => {
+    const { data, error } = await supabase
+      .from("user_clientes")
+      .select("cliente_id, clientes(id, razao_social, nome_fantasia, categoria)")
+      .eq("user_id", userId);
+    if (error) throw error;
+    return (data || []).map(r => r.clientes).filter(Boolean);
+  },
+  // Usuário logado: lista seus próprios clientes atribuídos
+  listMine: async () => {
+    const { data, error } = await supabase
+      .from("user_clientes")
+      .select("cliente_id, clientes(id, razao_social, nome_fantasia, categoria)");
+    if (error) throw error;
+    return (data || []).map(r => r.clientes).filter(Boolean);
+  },
+  assign: async (userId, clienteId) => {
+    const { error } = await supabase
+      .from("user_clientes")
+      .insert({ user_id: userId, cliente_id: clienteId });
+    if (error && !error.message.includes("duplicate")) throw error;
+  },
+  remove: async (userId, clienteId) => {
+    const { error } = await supabase
+      .from("user_clientes")
+      .delete()
+      .eq("user_id", userId)
+      .eq("cliente_id", clienteId);
+    if (error) throw error;
+  },
+};
 export const usersApi = {
   create: async (session, { nome, email, senha, role, cargo }) => {
     const res = await fetch(
