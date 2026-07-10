@@ -1870,7 +1870,7 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
               novos.push(meta);
             }
             if(novos.length){
-              const entrada=criarEntradaHistorico(session?.nome||"Sistema","anexo_adicionado",`Arquivo adicionado: ${novos.map(a=>a.name).join(", ")}`);
+              const entrada=criarEntradaHistorico(authUser?.nome||"Sistema","anexo_adicionado",`Arquivo adicionado: ${novos.map(a=>a.name).join(", ")}`);
               onUpdate({...cot,anexos:[...cot.anexos,...novos],historico:[...(cot.historico||[]),entrada]});
             }
             e.target.value="";
@@ -2775,7 +2775,8 @@ export default function App(){
 
     if(u._aprovar){
       await cotacoesApi.aprovar(u.id,u.status);
-      await cotacoesApi.update(u.id,{historico});
+      // historico é opcional — se coluna não existir, o update faz fallback automaticamente
+      try{ await cotacoesApi.update(u.id,{historico}); }catch(_){}
     } else {
       const {id,createdAt,updatedAt,criadoPor,_aprovar,...fields}=u;
       await cotacoesApi.update(u.id,{...fields,historico});
