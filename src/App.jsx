@@ -89,19 +89,29 @@ const getPath=(lista,item)=>{
 };
 
 const STATUS_COLORS={
-  rascunho:{bg:"#F3F4F6",color:"#6B7280",border:"#D1D5DB"},
-  aberta:{bg:C.yellowLight,color:C.yellow,border:"#FDE68A"},
-  cotando:{bg:C.blueLight,color:C.blue,border:"#BFDBFE"},
-  fechada:{bg:C.greenLight,color:C.green,border:C.greenBorder},
-  aprovada:{bg:"#DCFCE7",color:"#16A34A",border:"#86EFAC"},
-  rejeitada:{bg:C.redLight,color:C.red,border:"#FCA5A5"},
+  rascunho:  {bg:"#F3F4F6", color:"#6B7280", border:"#D1D5DB"},
+  aberta:    {bg:C.yellowLight, color:C.yellow, border:"#FDE68A"},
+  cotando:   {bg:C.blueLight, color:C.blue, border:"#BFDBFE"},
+  fechada:   {bg:C.greenLight, color:C.green, border:C.greenBorder},
+  aprovada:  {bg:"#DCFCE7", color:"#16A34A", border:"#86EFAC"},
+  pendente:  {bg:"#FEF3C7", color:"#D97706", border:"#FCD34D"},
+  concluida: {bg:"#ECFDF5", color:"#059669", border:"#6EE7B7"},
+  rejeitada: {bg:C.redLight, color:C.red, border:"#FCA5A5"},
 };
-
+const STATUS_LABELS={
+  rascunho:"Rascunho",
+  aberta:"Aguard. Fornecedores",
+  cotando:"Coletando Preços",
+  fechada:"Encerrada",
+  aprovada:"Aprovada",
+  pendente:"Pendente de Execução",
+  concluida:"Concluída",
+  rejeitada:"Rejeitada",
+};
 // ── UI Base ──────────────────────────────────────────────────────────────────
 function Badge({status}){
   const s=STATUS_COLORS[status]||STATUS_COLORS.aberta;
-  const labels={rascunho:"Rascunho",aberta:"Aberta",cotando:"Em Cotação",fechada:"Encerrada",aprovada:"Aprovada",rejeitada:"Rejeitada"};
-  return <span style={{background:s.bg,color:s.color,border:`1px solid ${s.border}`,borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:800,letterSpacing:0.3}}>{labels[status]}</span>;
+  return <span style={{background:s.bg,color:s.color,border:`1px solid ${s.border}`,borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:800,letterSpacing:0.3,whiteSpace:"nowrap"}}>{STATUS_LABELS[status]||status}</span>;
 }
 
 function Btn({children,onClick,variant="primary",size="md",disabled,style={}}){
@@ -169,8 +179,12 @@ function Lbl({children,required}){
 
 function Modal({title,subtitle,onClose,children,width=720}){
   const mob=useMobile();
-  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:1000,display:"flex",alignItems:mob?"flex-end":"center",justifyContent:"center",padding:mob?0:16}} onClick={onClose}>
-    <div style={{background:C.white,borderRadius:mob?"20px 20px 0 0":"16px",width:"100%",maxWidth:mob?"100%":width,maxHeight:mob?"92vh":"92vh",overflowY:"auto",boxShadow:"0 24px 64px rgba(0,0,0,.2)"}} onClick={e=>e.stopPropagation()}>
+  const [mdOnBackdrop,setMdOnBackdrop]=useState(false);
+  return <div
+    style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:1000,display:"flex",alignItems:mob?"flex-end":"center",justifyContent:"center",padding:mob?0:16}}
+    onMouseDown={e=>{if(e.target===e.currentTarget)setMdOnBackdrop(true);}}
+    onMouseUp={e=>{if(mdOnBackdrop&&e.target===e.currentTarget)onClose();setMdOnBackdrop(false);}}>
+    <div style={{background:C.white,borderRadius:mob?"20px 20px 0 0":"16px",width:"100%",maxWidth:mob?"100%":width,maxHeight:"92vh",overflowY:"auto",boxShadow:"0 24px 64px rgba(0,0,0,.2)"}} onMouseDown={e=>e.stopPropagation()}>
       <div style={{padding:mob?"16px 20px":"18px 24px",borderBottom:`1px solid ${C.gray200}`,display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:C.white,zIndex:10,borderRadius:mob?"20px 20px 0 0":"16px 16px 0 0"}}>
         <div><h2 style={{margin:0,fontSize:mob?17:18,fontWeight:900,color:C.navy}}>{title}</h2>{subtitle&&<div style={{fontSize:12,color:C.gray400,marginTop:2}}>{subtitle}</div>}</div>
         <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:C.gray400,lineHeight:1,padding:"4px 8px"}}>✕</button>
@@ -834,6 +848,7 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
   const [fornSel,setFornSel]=useState([]);
   const toggleF=(id)=>setFornSel(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
   const canSave=c.titulo.trim()&&c.itens.some(i=>i.descricao.trim());
+  const canRascunho=c.titulo.trim(); // rascunho só exige título
   const handleSave=(comoRascunho=false)=>{
     const fSel=fornecedores.filter(f=>fornSel.includes(f.id));
     onSave({...c,titulo:c.titulo.trim(),itens:c.itens.filter(i=>i.descricao.trim()),fornecedores:fSel,
@@ -883,7 +898,7 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
     </>}
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:24}}>
       <Btn onClick={onClose} variant="ghost">Cancelar</Btn>
-      <Btn onClick={()=>handleSave(true)} variant="light" disabled={!canSave}>💾 Rascunho</Btn>
+      <Btn onClick={()=>handleSave(true)} variant="light" disabled={!canRascunho}>💾 Rascunho</Btn>
       <Btn onClick={()=>handleSave(false)} variant="navy" disabled={!canSave}>Criar Cotação</Btn>
     </div>
   </Modal>;
@@ -926,7 +941,15 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
   const [search,setSearch]=useState("");
   const [filtroStatus,setFiltroStatus]=useState("todos");
 
-  const st={total:cotacoes.length,rascunhos:cotacoes.filter(c=>c.status==="rascunho").length,abertas:cotacoes.filter(c=>c.status==="aberta").length,cotando:cotacoes.filter(c=>c.status==="cotando").length,fechadas:cotacoes.filter(c=>c.status==="fechada").length};
+  const st={
+    total:cotacoes.length,
+    rascunhos:cotacoes.filter(c=>c.status==="rascunho").length,
+    andamento:cotacoes.filter(c=>["aberta","cotando"].includes(c.status)).length,
+    encerradas:cotacoes.filter(c=>c.status==="fechada").length,
+    aprovadas:cotacoes.filter(c=>c.status==="aprovada").length,
+    pendentes:cotacoes.filter(c=>c.status==="pendente").length,
+    concluidas:cotacoes.filter(c=>c.status==="concluida").length,
+  };
 
   const filtradas=[...cotacoes].reverse().filter(c=>{
     const matchSearch=!search||[c.titulo,c.numeroPedido,c.responsavel].some(v=>v?.toLowerCase().includes(search.toLowerCase()));
@@ -937,9 +960,12 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
   const STATUS_FILTROS=[
     {id:"todos",label:"Todas"},
     {id:"rascunho",label:"Rascunhos"},
-    {id:"aberta",label:"Abertas"},
-    {id:"cotando",label:"Em Cotação"},
+    {id:"aberta",label:"Aguard. Fornecedores"},
+    {id:"cotando",label:"Coletando Preços"},
     {id:"fechada",label:"Encerradas"},
+    {id:"aprovada",label:"Aprovadas"},
+    {id:"pendente",label:"Pend. Execução"},
+    {id:"concluida",label:"Concluídas"},
   ];
 
   const handleDelete=(e,id)=>{
@@ -951,10 +977,18 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
   return <div>
     {/* Stats */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:14,marginBottom:24}}>
-      {[{l:"Cotações",v:st.total,color:C.navy,f:"todos"},{l:"Rascunhos",v:st.rascunhos,color:"#6B7280",f:"rascunho"},{l:"Abertas",v:st.abertas,color:C.yellow,f:"aberta"},{l:"Em Cotação",v:st.cotando,color:C.blue,f:"cotando"},{l:"Encerradas",v:st.fechadas,color:C.green,f:"fechada"},{l:"Fornecedores",v:fornecedores.length,color:C.amberDark,f:null}].map(s=>(
-        <Card key={s.l} style={{padding:"16px 18px",borderLeft:`4px solid ${s.color}`,cursor:s.f?"pointer":"default"}} onClick={()=>s.f&&setFiltroStatus(s.f)}>
-          <div style={{fontSize:26,fontWeight:900,color:s.color}}>{s.v}</div>
-          <div style={{fontSize:12,color:C.gray600,fontWeight:700,marginTop:2}}>{s.l}</div>
+      {[
+        {l:"Total",v:st.total,color:C.navy,f:"todos"},
+        {l:"Rascunhos",v:st.rascunhos,color:"#6B7280",f:"rascunho"},
+        {l:"Em Andamento",v:st.andamento,color:C.blue,f:"aberta"},
+        {l:"Encerradas",v:st.encerradas,color:C.green,f:"fechada"},
+        {l:"Aprovadas",v:st.aprovadas,color:"#16A34A",f:"aprovada"},
+        {l:"Pend. Execução",v:st.pendentes,color:"#D97706",f:"pendente"},
+        {l:"Concluídas",v:st.concluidas,color:"#059669",f:"concluida"},
+      ].map(s=>(
+        <Card key={s.l} style={{padding:"14px 16px",borderLeft:`4px solid ${s.color}`,cursor:"pointer"}} onClick={()=>setFiltroStatus(s.f)}>
+          <div style={{fontSize:24,fontWeight:900,color:s.color}}>{s.v}</div>
+          <div style={{fontSize:11,color:C.gray600,fontWeight:700,marginTop:2}}>{s.l}</div>
         </Card>
       ))}
     </div>
@@ -1529,11 +1563,14 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
     anexos:      Array.isArray(cotacao?.anexos)?cotacao.anexos:[],
   };
   // Usa cot no lugar de cotacao dentro de todo o componente
-  const editavel=!readOnly&&cot.status!=="fechada"&&cot.status!=="aprovada"&&cot.status!=="rejeitada"&&cot.status!=="rascunho";
+  const FINAIS=["fechada","aprovada","rejeitada","rascunho","pendente","concluida"];
+  const editavel=!readOnly&&!FINAIS.includes(cot.status);
   const podeAprovar=can(authUser,"approve_cotacao")&&cot.status==="fechada";
   const cliente=(clientes||[]).find(c=>c.id===cot.clienteId);
   const [showVinc,setShowVinc]=useState(false);
   const [showPedido,setShowPedido]=useState(false);
+  const [showOs,setShowOs]=useState(false);
+  const [osTexto,setOsTexto]=useState("");
   const [editCell,setEditCell]=useState(null);
   const [tempVal,setTempVal]=useState("");
   const [editCond,setEditCond]=useState(null);
@@ -1636,13 +1673,17 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <Badge status={cot.status}/>
+          {/* Fluxo de status — síndico/admin aprovam; comprador/admin gerenciam restante */}
           {podeAprovar&&<>
             <Btn onClick={()=>onUpdate({...cot,status:"aprovada",_aprovar:true})} variant="success" size="sm">✔ Aprovar</Btn>
             <Btn onClick={()=>onUpdate({...cot,status:"rejeitada",_aprovar:true})} variant="danger" size="sm">✕ Rejeitar</Btn>
           </>}
-          {!readOnly&&(cot.status!=="fechada"&&cot.status!=="aprovada"&&cot.status!=="rejeitada"
-            ?<Btn onClick={()=>onUpdate({...cot,status:"fechada"})} variant="success" size="sm">✔ Encerrar</Btn>
-            :cot.status==="fechada"?<Btn onClick={()=>onUpdate({...cot,status:"cotando"})} variant="light" size="sm">Reabrir</Btn>:null)}
+          {!readOnly&&cot.status==="aprovada"&&<Btn onClick={()=>onUpdate({...cot,status:"pendente"})} variant="light" size="sm">📌 Marcar Pendente</Btn>}
+          {!readOnly&&cot.status==="pendente"&&<Btn onClick={()=>onUpdate({...cot,status:"concluida"})} variant="success" size="sm">✅ Concluir</Btn>}
+          {!readOnly&&["aberta","cotando","rascunho"].includes(cot.status)&&
+            <Btn onClick={()=>onUpdate({...cot,status:"fechada"})} variant="success" size="sm">✔ Encerrar</Btn>}
+          {!readOnly&&cot.status==="fechada"&&
+            <Btn onClick={()=>onUpdate({...cot,status:"cotando"})} variant="light" size="sm">↩ Reabrir</Btn>}
           {!readOnly&&<Btn onClick={()=>{setMetaDraft({...cotacao});setEditMeta(true);}} variant="light" size="sm">✏ Editar</Btn>}
           {!readOnly&&can(authUser,"create")&&<Btn onClick={handleDelete} variant="danger" size="sm">🗑</Btn>}
           <Btn onClick={()=>setShowPedido(true)} variant="navy" size="sm">👁 Ver / Imprimir Pedido</Btn>
@@ -1679,13 +1720,13 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
     {/* Fornecedores + botão */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
       <span style={{fontSize:11,fontWeight:800,color:C.gray600,letterSpacing:0.5}}>FORNECEDORES ({cot.fornecedores.length})</span>
-      {editavel&&<Btn onClick={()=>setShowVinc(true)} variant="primary" size="sm">＋ Vincular Fornecedor</Btn>}
+      {editavel&&cot.fornecedores.length>0&&<Btn onClick={()=>setShowVinc(true)} variant="primary" size="sm">＋ Vincular Fornecedor</Btn>}
     </div>
 
     {cot.fornecedores.length===0?<Card style={{textAlign:"center",padding:32,marginBottom:20}}>
       <div style={{fontSize:32,marginBottom:8}}>🏭</div>
       <div style={{fontSize:14,fontWeight:700,color:C.gray600,marginBottom:12}}>Vincule fornecedores para iniciar a comparação</div>
-      <Btn onClick={()=>setShowVinc(true)} variant="navy" size="sm">＋ Vincular Fornecedor</Btn>
+      {editavel&&<Btn onClick={()=>setShowVinc(true)} variant="navy" size="sm">＋ Vincular Fornecedor</Btn>}
     </Card>:<>
 
       {/* Chips fornecedores */}
@@ -1872,7 +1913,50 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
       </div>
     </Card>}
 
-    {/* Histórico */}
+    {/* OS Vinculadas */}
+    <Card style={{marginTop:12,padding:"14px 20px"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:(cot.osVinculadas||[]).length>0?10:0}}>
+        <div style={{fontSize:12,fontWeight:900,color:C.navy,letterSpacing:0.5}}>🔗 ORDENS DE SERVIÇO VINCULADAS ({(cot.osVinculadas||[]).length})</div>
+        {!readOnly&&<Btn onClick={()=>{setOsTexto("");setShowOs(true);}} variant="ghost" size="sm">＋ Vincular OS</Btn>}
+      </div>
+      {(cot.osVinculadas||[]).length===0?
+        <div style={{fontSize:12,color:C.gray400,padding:"6px 0"}}>Nenhuma OS vinculada — clique em "＋ Vincular OS" para associar uma OS do Simplifica Manut</div>:
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {(cot.osVinculadas||[]).map((os,i)=>(
+            <div key={i} style={{background:C.gray50,borderRadius:7,padding:"10px 12px",border:`1px solid ${C.gray200}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                <pre style={{margin:0,fontSize:12,color:C.gray800,whiteSpace:"pre-wrap",wordBreak:"break-word",fontFamily:"inherit",flex:1}}>{os.texto}</pre>
+                {!readOnly&&<button onClick={()=>onUpdate({...cot,osVinculadas:(cot.osVinculadas||[]).filter((_,j)=>j!==i)})} style={{background:"none",border:"none",cursor:"pointer",color:C.gray400,fontSize:14,flexShrink:0}}>✕</button>}
+              </div>
+              <div style={{fontSize:10,color:C.gray400,marginTop:4}}>{os.quem} · {new Date(os.data).toLocaleString("pt-BR")}</div>
+            </div>
+          ))}
+        </div>
+      }
+    </Card>
+
+    {/* Modal vincular OS */}
+    {showOs&&<Modal title="Vincular Ordem de Serviço" onClose={()=>setShowOs(false)} width={560}>
+      <div style={{fontSize:13,color:C.gray600,marginBottom:14,lineHeight:1.6}}>
+        No <strong>Simplifica Manut</strong>, abra a OS, clique em <strong>WhatsApp</strong> e copie o texto gerado. Cole aqui abaixo para vincular a OS a esta cotação.
+      </div>
+      <div><Lbl required>Texto da OS (cole aqui)</Lbl>
+        <textarea value={osTexto} onChange={e=>setOsTexto(e.target.value)}
+          placeholder="Cole aqui o texto da OS copiado do WhatsApp do Simplifica Manut..."
+          style={{width:"100%",minHeight:140,border:`1.5px solid ${C.gray200}`,borderRadius:8,padding:"10px 12px",fontSize:13,fontFamily:"inherit",resize:"vertical",outline:"none",boxSizing:"border-box"}}
+          onFocus={e=>e.target.style.borderColor=C.amber} onBlur={e=>e.target.style.borderColor=C.gray200}/>
+      </div>
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:16}}>
+        <Btn onClick={()=>setShowOs(false)} variant="ghost">Cancelar</Btn>
+        <Btn onClick={()=>{
+          if(!osTexto.trim())return;
+          const nova={texto:osTexto.trim(),data:new Date().toISOString(),quem:authUser?.nome||"—"};
+          const entrada=criarEntradaHistorico(authUser?.nome||"—","os_vinculada",`OS vinculada: "${osTexto.trim().slice(0,60)}${osTexto.length>60?"...":""}"`);
+          onUpdate({...cot,osVinculadas:[...(cot.osVinculadas||[]),nova],historico:[...(cot.historico||[]),entrada]});
+          setShowOs(false);
+        }} variant="navy" disabled={!osTexto.trim()}>Vincular OS</Btn>
+      </div>
+    </Modal>}
     {(cot.historico||[]).length>0&&<Card style={{marginTop:12,padding:"14px 20px"}}>
       <div style={{fontSize:11,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:10}}>📋 HISTÓRICO DE ALTERAÇÕES</div>
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -2635,21 +2719,56 @@ export default function App(){
   };
 
   const updCot=useCallback(async(u)=>{
-    // Monta entrada de histórico
-    const entrada=criarEntradaHistorico(
-      session?.nome||"Sistema",
-      u._aprovar?(u.status==="aprovada"?"aprovacao":"rejeicao"):"edicao",
-      u._aprovar?(u.status==="aprovada"?"Cotação aprovada":"Cotação rejeitada"):
-        u.status!==cotacoes.find(c=>c.id===u.id)?.status?
-          `Status alterado para "${u.status}"` : "Informações editadas",
-      {statusAnterior:cotacoes.find(c=>c.id===u.id)?.status,statusNovo:u.status}
-    );
-    const historico=[...(u.historico||cotacoes.find(c=>c.id===u.id)?.historico||[]),entrada];
+    const ant=cotacoes.find(c=>c.id===u.id)||{};
+    const nomeUsuario=session?.nome||"Sistema";
+
+    // Detecta mudanças campo a campo para historico detalhado
+    const CAMPOS={titulo:"Título",responsavel:"Responsável",aprovador:"Aprovador",
+      centrosCusto:"Tipo de Despesa",classificacao:"Classificação",status:"Status"};
+    const mudancas=[];
+
+    if(u._aprovar){
+      mudancas.push(`${u.status==="aprovada"?"Aprovação":"Rejeição"} via sistema`);
+    } else {
+      Object.entries(CAMPOS).forEach(([k,label])=>{
+        if(u[k]!==undefined&&u[k]!==ant[k]&&k!=="status"){
+          mudancas.push(`${label}: "${ant[k]||"(vazio)"}" -> "${u[k]||"(vazio)"}"`);
+        }
+      });
+      if(u.status&&u.status!==ant.status) mudancas.push(`Status: "${STATUS_LABELS[ant.status]||ant.status}" → "${STATUS_LABELS[u.status]||u.status}"`);
+      const fAnt=(ant.fornecedores||[]).map(f=>f.id);
+      const fNov=(u.fornecedores||[]).map(f=>f.id);
+      fNov.filter(id=>!fAnt.includes(id)).forEach(id=>{
+        const f=(u.fornecedores||[]).find(x=>x.id===id);
+        if(f) mudancas.push(`Fornecedor adicionado: ${f.nomeFantasia||f.razaoSocial}`);
+      });
+      fAnt.filter(id=>!fNov.includes(id)).forEach(id=>{
+        const f=(ant.fornecedores||[]).find(x=>x.id===id);
+        if(f) mudancas.push(`Fornecedor removido: ${f.nomeFantasia||f.razaoSocial}`);
+      });
+      const anAnt=(ant.anexos||[]).map(a=>a.path);
+      const anNov=(u.anexos||[]).map(a=>a.path);
+      anNov.filter(p=>!anAnt.includes(p)).forEach(p=>{
+        const a=(u.anexos||[]).find(x=>x.path===p);
+        if(a) mudancas.push(`Arquivo adicionado: ${a.name}`);
+      });
+      anAnt.filter(p=>!anNov.includes(p)).forEach(p=>{
+        const a=(ant.anexos||[]).find(x=>x.path===p);
+        if(a) mudancas.push(`Arquivo removido: ${a.name}`);
+      });
+    }
+
+    const descricao=mudancas.length>0?mudancas.join(" | "):"Atualização";
+    const tipo=u._aprovar?(u.status==="aprovada"?"aprovacao":"rejeicao"):
+      u.status!==ant.status?"status":"edicao";
+
+    const entrada=criarEntradaHistorico(nomeUsuario,tipo,descricao);
+    const historico=[...(u.historico||ant.historico||[]),entrada];
 
     if(u._aprovar){
       await cotacoesApi.aprovar(u.id,u.status);
       await cotacoesApi.update(u.id,{historico});
-    }else{
+    } else {
       const {id,createdAt,updatedAt,criadoPor,_aprovar,...fields}=u;
       await cotacoesApi.update(u.id,{...fields,historico});
     }
