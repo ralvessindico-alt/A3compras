@@ -140,7 +140,7 @@ function Toggle({value,onChange,label}){
   </div>;
 }
 
-function Card({children,style={}}){return <div style={{background:C.white,borderRadius:12,border:`1px solid ${C.gray200}`,boxShadow:"0 1px 4px rgba(0,0,0,.06)",padding:20,...style}}>{children}</div>;}
+function Card({children,style={},...rest}){return <div style={{background:C.white,borderRadius:12,border:`1px solid ${C.gray200}`,boxShadow:"0 1px 4px rgba(0,0,0,.06)",padding:20,...style}} {...rest}>{children}</div>;}
 
 function SectionDivider({children}){
   return <div style={{display:"flex",alignItems:"center",gap:8,margin:"20px 0 14px"}}>
