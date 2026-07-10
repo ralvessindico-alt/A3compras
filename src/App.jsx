@@ -2460,7 +2460,7 @@ export default function App(){
   const createCot=async(c)=>{
     const novo=await cotacoesApi.create(c);
     await reloadCotacoes();
-    setView(novo.id);setShowNova(false);
+    setCurrCotId(novo.id);setShowNova(false);
   };
 
   const updCot=useCallback(async(u)=>{
@@ -2554,14 +2554,14 @@ export default function App(){
         {/* Topbar */}
         <div style={{background:C.white,borderBottom:`2px solid ${C.amber}`,padding:`0 ${isMobile?14:20}px`,height:isMobile?52:56,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
           <div style={{display:"flex",alignItems:"center",gap:isMobile?8:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setView("dashboard")}>
+            <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>{setCurrCotId(null);setView("dashboard");}}>
               <div style={{width:32,height:32,background:`linear-gradient(135deg,${C.amber},${C.amberDark})`,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:C.navy,fontSize:13,flexShrink:0}}>A3</div>
               {!isMobile&&<div><div style={{fontWeight:900,fontSize:14,color:C.navy,lineHeight:1.1}}>A3 Cotações</div><div style={{fontSize:10,color:C.gray400,fontWeight:600}}>Gestão de Compras</div></div>}
               {isMobile&&<div style={{fontWeight:900,fontSize:15,color:C.navy}}>{isInCotacao?currCot?.titulo?.slice(0,20)+(currCot?.titulo?.length>20?"…":""):NAV.find(n=>n.id===view)?.label||"A3"}</div>}
             </div>
             {!isMobile&&<nav style={{display:"flex",gap:2}}>
               {NAV.map(n=>{const active=view===n.id||(n.id==="dashboard"&&isInCotacao);return(
-                <button key={n.id} onClick={()=>setView(n.id)} style={{background:active?C.navy:"transparent",color:active?C.white:C.gray600,border:"none",borderRadius:7,padding:"5px 12px",fontWeight:700,fontSize:12,cursor:"pointer",transition:"all .15s",display:"flex",alignItems:"center",gap:5}}>
+                <button key={n.id} onClick={()=>{setCurrCotId(null);setView(n.id);}} style={{background:active?C.navy:"transparent",color:active?C.white:C.gray600,border:"none",borderRadius:7,padding:"5px 12px",fontWeight:700,fontSize:12,cursor:"pointer",transition:"all .15s",display:"flex",alignItems:"center",gap:5}}>
                   {n.icon} {n.label}
                   {n.badge>0&&<span style={{background:C.red,color:C.white,borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{n.badge}</span>}
                 </button>
@@ -2599,7 +2599,7 @@ export default function App(){
         {/* Bottom nav (mobile) */}
         {isMobile&&<div style={{position:"fixed",bottom:0,left:0,right:0,background:C.white,borderTop:`1px solid ${C.gray200}`,display:"flex",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,.08)",paddingBottom:"env(safe-area-inset-bottom)"}}>
           {NAV.map(n=>{const active=view===n.id||(n.id==="dashboard"&&isInCotacao);return(
-            <button key={n.id} onClick={()=>setView(n.id)} style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"10px 4px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,position:"relative"}}>
+            <button key={n.id} onClick={()=>{setCurrCotId(null);setView(n.id);}} style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"10px 4px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,position:"relative"}}>
               <span style={{fontSize:20,lineHeight:1}}>{n.icon}</span>
               <span style={{fontSize:10,fontWeight:active?800:600,color:active?C.navy:C.gray400}}>{n.label}</span>
               {n.badge>0&&<span style={{position:"absolute",top:6,right:"calc(50% - 14px)",background:C.red,color:C.white,borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{n.badge}</span>}
