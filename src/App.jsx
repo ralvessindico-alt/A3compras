@@ -3,7 +3,7 @@ import {
   auth, getMyProfile, profilesApi, convitesUsuarioApi,
   fornecedoresApi, clientesApi, planoContasApi, cotacoesApi, storageApi,
   convitesFornecedorApi, pendentesFornecedorApi, portalFornecedorApi,
-  usersApi, aprovacaoApi,
+  usersApi, aprovacaoApi, userClientesApi,
 } from "./lib/api";
 
 // ── Mobile context ────────────────────────────────────────────────────────────
@@ -2450,6 +2450,7 @@ function RoleOpt({val,onSet,k}){
 function TelaUsuarios(){
   const {user:me}=useAuth();
   const [users,setUsers]=useState([]);
+  const [todosClientes,setTodosClientes]=useState([]);
   const [showForm,setShowForm]=useState(false);
   const [nome,setNome]=useState("");
   const [email,setEmail]=useState("");
@@ -2459,8 +2460,12 @@ function TelaUsuarios(){
   const [erro,setErro]=useState("");
   const [saving,setSaving]=useState(false);
   const [editing,setEditing]=useState(null);
+  const [editClientes,setEditClientes]=useState([]); // clientes atribuídos ao usuário sendo editado
 
-  const reload=async()=>{const u=await profilesApi.list();setUsers(u);};
+  const reload=async()=>{
+    const [u,cl]=await Promise.all([profilesApi.list(),clientesApi.list()]);
+    setUsers(u);setTodosClientes(cl);
+  };
   useEffect(()=>{reload();},[]);
 
   const handleCreate=async()=>{
@@ -2476,10 +2481,27 @@ function TelaUsuarios(){
     finally{setSaving(false);}
   };
 
+  const openEdit=async(u)=>{
+    setEditing({...u});
+    const atribuidos=await userClientesApi.listForUser(u.id);
+    setEditClientes(atribuidos.map(c=>c.id));
+  };
+
   const saveEdit=async()=>{
     await profilesApi.update(editing.id,{role:editing.role,cargo:editing.cargo,telefone:editing.telefone,ativo:editing.ativo});
+    // Sincroniza clientes atribuídos
+    const atual=await userClientesApi.listForUser(editing.id);
+    const atualIds=atual.map(c=>c.id);
+    const adicionar=editClientes.filter(id=>!atualIds.includes(id));
+    const remover=atualIds.filter(id=>!editClientes.includes(id));
+    await Promise.all([
+      ...adicionar.map(id=>userClientesApi.assign(editing.id,id)),
+      ...remover.map(id=>userClientesApi.remove(editing.id,id)),
+    ]);
     setEditing(null);await reload();
   };
+
+  const toggleCliente=(id)=>setEditClientes(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
 
   return <div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
@@ -2496,22 +2518,25 @@ function TelaUsuarios(){
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               <div style={{width:40,height:40,borderRadius:"50%",background:r.bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:16,color:r.color,flexShrink:0}}>{u.nome.charAt(0).toUpperCase()}</div>
               <div>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                   <span style={{fontWeight:900,fontSize:15,color:C.navy}}>{u.nome}</span>
                   {u.id===me?.userId&&<span style={{fontSize:10,background:C.gray100,color:C.gray400,padding:"1px 6px",borderRadius:10}}>você</span>}
                   <span style={{background:r.bg,color:r.color,fontSize:11,fontWeight:800,padding:"2px 10px",borderRadius:20}}>{r.label}</span>
+                  {!u.ativo&&<span style={{background:C.redLight,color:C.red,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:20}}>Inativo</span>}
                 </div>
                 <div style={{fontSize:12,color:C.gray400,marginTop:2}}>{u.email}{u.cargo?` · ${u.cargo}`:""}</div>
               </div>
             </div>
-            <Btn onClick={()=>setEditing({...u})} variant="ghost" size="sm">Editar</Btn>
+            <Btn onClick={()=>openEdit(u)} variant="ghost" size="sm">Editar</Btn>
           </div>
         </Card>;
       })}
     </div>
+
+    {/* Modal criar */}
     {showForm&&<Modal title="Criar Usuário" onClose={()=>{setShowForm(false);setErro("");}} width={440}>
       <div style={{fontSize:13,color:C.blue,marginBottom:16,padding:"10px 14px",background:C.blueLight,borderRadius:8}}>
-        O usuário poderá fazer login imediatamente com o e-mail e senha definidos abaixo — sem convite por e-mail.
+        Login disponível imediatamente com o e-mail e senha definidos abaixo.
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
         <div><Lbl required>Nome completo</Lbl><Inp value={nome} onChange={setNome} placeholder="Nome do usuário"/></div>
@@ -2530,7 +2555,9 @@ function TelaUsuarios(){
         <Btn onClick={handleCreate} variant="navy" disabled={saving}>{saving?"Criando...":"Criar Usuário"}</Btn>
       </div>
     </Modal>}
-    {editing&&<Modal title="Editar Usuário" onClose={()=>setEditing(null)} width={420}>
+
+    {/* Modal editar */}
+    {editing&&<Modal title="Editar Usuário" onClose={()=>setEditing(null)} width={520}>
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
         <div><Lbl>Cargo</Lbl><Inp value={editing.cargo||""} onChange={v=>setEditing(p=>({...p,cargo:v}))}/></div>
         <div><Lbl>Telefone</Lbl><Inp value={editing.telefone||""} onChange={v=>setEditing(p=>({...p,telefone:v}))} mask="tel"/></div>
@@ -2540,6 +2567,32 @@ function TelaUsuarios(){
           </div>
         </div>
         {editing.id!==me?.userId&&<Toggle value={editing.ativo!==false} onChange={v=>setEditing(p=>({...p,ativo:v}))} label="Usuário ativo"/>}
+
+        {/* Atribuição de clientes — só para comprador e síndico */}
+        {editing.role!=="admin"&&<div>
+          <Lbl>Acesso a Condomínios / Clientes</Lbl>
+          <div style={{fontSize:12,color:C.gray400,marginBottom:8,marginTop:2}}>
+            {editClientes.length===0
+              ?"Nenhum selecionado — usuário vê todos (sem restrição)"
+              :`${editClientes.length} condomínio${editClientes.length!==1?"s":""} selecionado${editClientes.length!==1?"s":""}`}
+          </div>
+          <div style={{maxHeight:200,overflowY:"auto",border:`1px solid ${C.gray200}`,borderRadius:8,padding:8,display:"flex",flexDirection:"column",gap:4}}>
+            {todosClientes.length===0?
+              <div style={{fontSize:13,color:C.gray400,textAlign:"center",padding:12}}>Nenhum cliente cadastrado ainda</div>:
+              todosClientes.map(c=>{
+                const sel=editClientes.includes(c.id);
+                return <div key={c.id} onClick={()=>toggleCliente(c.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",borderRadius:6,cursor:"pointer",background:sel?"#EEF1FB":C.white,border:`1px solid ${sel?C.navy:C.gray200}`}}>
+                  <div style={{width:16,height:16,borderRadius:3,border:`2px solid ${sel?C.navy:C.gray300}`,background:sel?C.navy:C.white,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    {sel&&<span style={{color:C.white,fontSize:11,lineHeight:1}}>✓</span>}
+                  </div>
+                  <span style={{fontSize:13,fontWeight:sel?700:400,color:sel?C.navy:C.gray800}}>{c.nomeFantasia||c.razaoSocial}</span>
+                  {c.categoria&&<span style={{fontSize:10,color:C.gray400,marginLeft:"auto"}}>{c.categoria}</span>}
+                </div>;
+              })
+            }
+          </div>
+          {editClientes.length>0&&<button onClick={()=>setEditClientes([])} style={{background:"none",border:"none",cursor:"pointer",color:C.red,fontSize:12,fontWeight:600,marginTop:6,textAlign:"left"}}>✕ Remover todas as restrições</button>}
+        </div>}
       </div>
       <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:22}}>
         <Btn onClick={()=>setEditing(null)} variant="ghost">Cancelar</Btn>
