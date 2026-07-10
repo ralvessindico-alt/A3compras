@@ -1258,20 +1258,26 @@ function generatePrintHTML(cotacao) {
 // ── Visualização do Pedido de Compra ─────────────────────────────────────────
 function PedidoView({cotacao,onClose}){
   const mob=useMobile();
+  // Guards para campos JSONB que podem vir null do Supabase
+  const itens=Array.isArray(cotacao?.itens)?cotacao.itens:[];
+  const fornecedores=Array.isArray(cotacao?.fornecedores)?cotacao.fornecedores:[];
+  const propostas=Array.isArray(cotacao?.propostas)?cotacao.propostas:[];
+  const condicoesFornecedor=Array.isArray(cotacao?.condicoesFornecedor)?cotacao.condicoesFornecedor:[];
+  const cot={...cotacao,itens,fornecedores,propostas,condicoesFornecedor};
 
   const handlePrint=()=>window.print();
-  const getProp=(fid,iid)=>cotacao.propostas.find(p=>p.fornecedorId===fid&&p.itemId===iid);
-  const getCond=(fid,field)=>(cotacao.condicoesFornecedor||[]).find(c=>c.fornecedorId===fid)?.[field]||"—";
+  const getProp=(fid,iid)=>cot.propostas.find(p=>p.fornecedorId===fid&&p.itemId===iid);
+  const getCond=(fid,field)=>cot.condicoesFornecedor.find(c=>c.fornecedorId===fid)?.[field]||"—";
   const bestByItem={};
-  cotacao.itens.forEach(item=>{
-    const ps=cotacao.fornecedores.map(f=>getProp(f.id,item.id)?.preco).filter(v=>v!=null);
+  cot.itens.forEach(item=>{
+    const ps=cot.fornecedores.map(f=>getProp(f.id,item.id)?.preco).filter(v=>v!=null);
     if(ps.length)bestByItem[item.id]=Math.min(...ps);
   });
-  const totalF=(fid)=>cotacao.itens.reduce((s,item)=>{const p=getProp(fid,item.id);return s+(p?p.preco*item.quantidade:0);},0);
-  const totals=cotacao.fornecedores.map(f=>({id:f.id,total:totalF(f.id)})).filter(t=>t.total>0);
+  const totalF=(fid)=>cot.itens.reduce((s,item)=>{const p=getProp(fid,item.id);return s+(p?p.preco*item.quantidade:0);},0);
+  const totals=cot.fornecedores.map(f=>({id:f.id,total:totalF(f.id)})).filter(t=>t.total>0);
   const bestTotal=totals.length?Math.min(...totals.map(t=>t.total)):null;
-  const winner=bestTotal!=null?cotacao.fornecedores.find(f=>totalF(f.id)===bestTotal):null;
-  const nF=cotacao.fornecedores.length;
+  const winner=bestTotal!=null?cot.fornecedores.find(f=>totalF(f.id)===bestTotal):null;
+  const nF=cot.fornecedores.length;
 
   const TH={padding:"8px 10px",fontWeight:800,fontSize:11,letterSpacing:0.3,color:C.white,textAlign:"center",borderRight:"1px solid rgba(255,255,255,.15)"};
   const TH2={padding:"5px 8px",fontWeight:700,fontSize:10,color:C.gray600,textAlign:"center",borderRight:`1px solid ${C.gray200}`,background:"#EEF1FB"};
@@ -1282,8 +1288,8 @@ function PedidoView({cotacao,onClose}){
       {/* Toolbar */}
       <div className="no-print" style={{background:C.navy,padding:"10px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontWeight:900,color:C.white,fontSize:14}}>👁 Formulário de Compra — {cotacao.numeroPedido}</span>
-          <Badge status={cotacao.status}/>
+          <span style={{fontWeight:900,color:C.white,fontSize:14}}>👁 Formulário de Compra — {cot.numeroPedido}</span>
+          <Badge status={cot.status}/>
         </div>
         <div style={{display:"flex",gap:8}}>
           <Btn onClick={handlePrint} variant="primary" size="sm">🖨 Imprimir / PDF</Btn>
@@ -1300,10 +1306,10 @@ function PedidoView({cotacao,onClose}){
             <div style={{width:48,height:48,background:C.amber,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:C.navy,fontSize:18,flexShrink:0}}>A3</div>
             <div style={{flex:1}}>
               <div style={{fontSize:10,fontWeight:800,color:C.amberLight,letterSpacing:1.2,marginBottom:3}}>FORMULÁRIO DE COMPRA</div>
-              <div style={{fontSize:18,fontWeight:900,color:C.white,lineHeight:1.2}}>{cotacao.titulo}</div>
+              <div style={{fontSize:18,fontWeight:900,color:C.white,lineHeight:1.2}}>{cot.titulo}</div>
             </div>
             <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
-              {[["Nº PEDIDO",cotacao.numeroPedido],["DATA",cotacao.dataCriacao],["RESPONSÁVEL",cotacao.responsavel||"—"],["APROVADOR",cotacao.aprovador||"—"]].map(([l,v])=>(
+              {[["Nº PEDIDO",cot.numeroPedido],["DATA",cot.dataCriacao],["RESPONSÁVEL",cot.responsavel||"—"],["APROVADOR",cot.aprovador||"—"]].map(([l,v])=>(
                 <div key={l} style={{textAlign:"right"}}>
                   <div style={{fontSize:9,fontWeight:800,color:"rgba(255,255,255,.45)",letterSpacing:0.8}}>{l}</div>
                   <div style={{fontSize:13,fontWeight:800,color:C.white}}>{v}</div>
@@ -1314,27 +1320,27 @@ function PedidoView({cotacao,onClose}){
 
           {/* ── CLASSIFICAÇÃO ── */}
           <div style={{background:"#F0F2F8",padding:"10px 28px",display:"flex",gap:24,flexWrap:"wrap",borderBottom:`1px solid ${C.gray200}`}}>
-            {cotacao.centrosCusto&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>TIPO DE DESPESA </span><span style={{fontSize:12,fontWeight:800,color:cotacao.centrosCusto==="Ordinária"?C.navy:"#7C3AED"}}>{cotacao.centrosCusto==="Ordinária"?"📅":"⚡"} {cotacao.centrosCusto}</span></div>}
-            {cotacao.planoContas&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>PLANO DE CONTAS </span><span style={{fontSize:12,fontWeight:800,color:C.gray800,fontFamily:"monospace"}}>{cotacao.planoContas}</span></div>}
-            {cotacao.classificacao&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>CLASSIFICAÇÃO </span><span style={{fontSize:12,fontWeight:700,color:C.gray700}}>{cotacao.classificacao}</span></div>}
+            {cot.centrosCusto&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>TIPO DE DESPESA </span><span style={{fontSize:12,fontWeight:800,color:cot.centrosCusto==="Ordinária"?C.navy:"#7C3AED"}}>{cot.centrosCusto==="Ordinária"?"📅":"⚡"} {cot.centrosCusto}</span></div>}
+            {cot.planoContas&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>PLANO DE CONTAS </span><span style={{fontSize:12,fontWeight:800,color:C.gray800,fontFamily:"monospace"}}>{cot.planoContas}</span></div>}
+            {cot.classificacao&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>CLASSIFICAÇÃO </span><span style={{fontSize:12,fontWeight:700,color:C.gray700}}>{cot.classificacao}</span></div>}
             <div style={{marginLeft:"auto",display:"flex",gap:16}}>
-              <div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>URGENTE </span><span style={{fontSize:12,fontWeight:800,color:cotacao.urgente?C.red:C.gray400}}>{cotacao.urgente?"SIM":"NÃO"}</span></div>
-              <div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>NECESSÁRIO </span><span style={{fontSize:12,fontWeight:800,color:cotacao.necessario?C.green:C.gray400}}>{cotacao.necessario?"SIM":"NÃO"}</span></div>
+              <div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>URGENTE </span><span style={{fontSize:12,fontWeight:800,color:cot.urgente?C.red:C.gray400}}>{cot.urgente?"SIM":"NÃO"}</span></div>
+              <div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>NECESSÁRIO </span><span style={{fontSize:12,fontWeight:800,color:cot.necessario?C.green:C.gray400}}>{cot.necessario?"SIM":"NÃO"}</span></div>
             </div>
           </div>
 
           <div style={{padding:"20px 28px",display:"flex",flexDirection:"column",gap:16}}>
 
             {/* ── DESCRIÇÃO + JUSTIFICATIVA ── */}
-            {(cotacao.descricaoAquisicao||cotacao.justificativa)&&(
-              <div style={{display:"grid",gridTemplateColumns:cotacao.descricaoAquisicao&&cotacao.justificativa?"1fr 1fr":"1fr",gap:16}}>
-                {cotacao.descricaoAquisicao&&<div style={{background:C.gray50,borderRadius:8,padding:"12px 14px",borderLeft:`3px solid ${C.navy}`}}>
+            {(cot.descricaoAquisicao||cot.justificativa)&&(
+              <div style={{display:"grid",gridTemplateColumns:cot.descricaoAquisicao&&cot.justificativa?"1fr 1fr":"1fr",gap:16}}>
+                {cot.descricaoAquisicao&&<div style={{background:C.gray50,borderRadius:8,padding:"12px 14px",borderLeft:`3px solid ${C.navy}`}}>
                   <div style={{fontSize:9,fontWeight:900,color:C.navy,letterSpacing:0.8,marginBottom:6}}>DESCRIÇÃO DA AQUISIÇÃO</div>
-                  <div style={{fontSize:12,color:C.gray700,lineHeight:1.7}}>{cotacao.descricaoAquisicao}</div>
+                  <div style={{fontSize:12,color:C.gray700,lineHeight:1.7}}>{cot.descricaoAquisicao}</div>
                 </div>}
-                {cotacao.justificativa&&<div style={{background:C.gray50,borderRadius:8,padding:"12px 14px",borderLeft:`3px solid ${C.amber}`}}>
+                {cot.justificativa&&<div style={{background:C.gray50,borderRadius:8,padding:"12px 14px",borderLeft:`3px solid ${C.amber}`}}>
                   <div style={{fontSize:9,fontWeight:900,color:C.amberDark,letterSpacing:0.8,marginBottom:6}}>JUSTIFICATIVA</div>
-                  <div style={{fontSize:12,color:C.gray700,lineHeight:1.7}}>{cotacao.justificativa}</div>
+                  <div style={{fontSize:12,color:C.gray700,lineHeight:1.7}}>{cot.justificativa}</div>
                 </div>}
               </div>
             )}
@@ -1352,7 +1358,7 @@ function PedidoView({cotacao,onClose}){
                         <th style={{...TH,textAlign:"left",minWidth:180,width:"30%"}}>ITEM / DESCRIÇÃO</th>
                         <th style={{...TH,width:50}}>UNID</th>
                         <th style={{...TH,width:50}}>QTD</th>
-                        {cotacao.fornecedores.map((f,i)=>(
+                        {cot.fornecedores.map((f,i)=>(
                           <th key={f.id} colSpan={2} style={{...TH,minWidth:160}}>
                             <div style={{fontSize:11,fontWeight:900}}>{f.nomeFantasia||f.razaoSocial}</div>
                             <div style={{fontSize:9,color:"rgba(255,255,255,.4)",fontWeight:500}}>{f.cnpj||f.cpf||""}</div>
@@ -1361,7 +1367,7 @@ function PedidoView({cotacao,onClose}){
                       </tr>
                       <tr>
                         <td colSpan={3} style={{background:"#EEF1FB",padding:"4px 8px"}}/>
-                        {cotacao.fornecedores.map(f=>(
+                        {cot.fornecedores.map(f=>(
                           <Fragment key={f.id}>
                             <td style={{...TH2}}>VL. UNIT</td>
                             <td style={{...TH2,borderRight:`2px solid ${C.gray300}`}}>TOTAL</td>
@@ -1370,14 +1376,14 @@ function PedidoView({cotacao,onClose}){
                       </tr>
                     </thead>
                     <tbody>
-                      {cotacao.itens.map((item,idx)=>(
+                      {cot.itens.map((item,idx)=>(
                         <tr key={item.id} style={{background:idx%2===0?C.white:C.gray50}}>
                           <td style={{...TD,fontWeight:600,textAlign:"left",color:C.gray800}}>
                             <span style={{color:C.gray400,fontSize:10,marginRight:4}}>0{idx+1}</span>{item.descricao}
                           </td>
                           <td style={{...TD,textAlign:"center",color:C.gray500}}>{item.unidade}</td>
                           <td style={{...TD,textAlign:"center",fontWeight:700}}>{item.quantidade}</td>
-                          {cotacao.fornecedores.map(f=>{
+                          {cot.fornecedores.map(f=>{
                             const p=getProp(f.id,item.id);
                             const isBest=p&&bestByItem[item.id]&&p.preco===bestByItem[item.id];
                             const bg=isBest?"rgba(22,163,74,.07)":"transparent";
@@ -1395,7 +1401,7 @@ function PedidoView({cotacao,onClose}){
                       {/* Total */}
                       <tr style={{background:"#EEF1FB"}}>
                         <td colSpan={3} style={{padding:"10px",fontWeight:900,color:C.navy,fontSize:12,borderRight:`1px solid ${C.gray200}`}}>TOTAL GERAL</td>
-                        {cotacao.fornecedores.map(f=>{
+                        {cot.fornecedores.map(f=>{
                           const total=totalF(f.id);
                           const isBestT=bestTotal&&total===bestTotal&&total>0;
                           return(
@@ -1415,7 +1421,7 @@ function PedidoView({cotacao,onClose}){
                       {[["Entrega","entrega"],["Garantia","garantia"],["Pagamento","pagamento"],["Observações","obs"]].map(([label,field])=>(
                         <tr key={field} style={{background:C.white}}>
                           <td colSpan={3} style={{...TD,fontWeight:700,color:C.gray600}}>{label}</td>
-                          {cotacao.fornecedores.map(f=>(
+                          {cot.fornecedores.map(f=>(
                             <td key={f.id} colSpan={2} style={{...TD,textAlign:"center",color:C.gray700,borderRight:`2px solid ${C.gray300}`}}>{getCond(f.id,field)}</td>
                           ))}
                         </tr>
@@ -1440,7 +1446,7 @@ function PedidoView({cotacao,onClose}){
                       </tr>
                     </thead>
                     <tbody>
-                      {cotacao.fornecedores.map((f,i)=>(
+                      {cot.fornecedores.map((f,i)=>(
                         <tr key={f.id} style={{background:i%2===0?C.white:C.gray50}}>
                           <td style={{padding:"7px 10px",fontWeight:900,color:C.navy,fontSize:12,borderBottom:`1px solid ${C.gray200}`}}>{i+1}</td>
                           <td style={{padding:"7px 10px",fontWeight:700,color:C.gray800,borderBottom:`1px solid ${C.gray200}`}}>{f.razaoSocial}</td>
@@ -1473,11 +1479,11 @@ function PedidoView({cotacao,onClose}){
                     </thead>
                     <tbody>
                       <tr>
-                        <td style={{padding:"10px",textAlign:"center",fontWeight:900,fontSize:13,color:cotacao.urgente?C.red:C.gray300}}>{cotacao.urgente?"SIM":"NÃO"}</td>
-                        <td style={{padding:"10px",textAlign:"center",fontWeight:900,fontSize:13,color:cotacao.necessario?C.green:C.gray300}}>{cotacao.necessario?"SIM":"NÃO"}</td>
-                        <td style={{padding:"10px",textAlign:"center",fontWeight:700,fontSize:12,color:C.gray700}}>{cotacao.centrosCusto||"—"}</td>
-                        <td style={{padding:"10px",textAlign:"center",fontSize:11,color:C.gray600}}>{cotacao.classificacao||"—"}</td>
-                        <td style={{padding:"10px",textAlign:"center",fontWeight:700,fontSize:12,color:C.gray700}}>{cotacao.aprovador||<span style={{color:C.gray300,fontStyle:"italic"}}>Pendente</span>}</td>
+                        <td style={{padding:"10px",textAlign:"center",fontWeight:900,fontSize:13,color:cot.urgente?C.red:C.gray300}}>{cot.urgente?"SIM":"NÃO"}</td>
+                        <td style={{padding:"10px",textAlign:"center",fontWeight:900,fontSize:13,color:cot.necessario?C.green:C.gray300}}>{cot.necessario?"SIM":"NÃO"}</td>
+                        <td style={{padding:"10px",textAlign:"center",fontWeight:700,fontSize:12,color:C.gray700}}>{cot.centrosCusto||"—"}</td>
+                        <td style={{padding:"10px",textAlign:"center",fontSize:11,color:C.gray600}}>{cot.classificacao||"—"}</td>
+                        <td style={{padding:"10px",textAlign:"center",fontWeight:700,fontSize:12,color:C.gray700}}>{cot.aprovador||<span style={{color:C.gray300,fontStyle:"italic"}}>Pendente</span>}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1825,9 +1831,12 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
     </Card>
 
     {/* Modal vincular */}
-    {showVinc&&<ModalVincular fornecedores={allFornecedores} vinculados={cot.fornecedores} itensCotacao={cot.itens} onClose={()=>setShowVinc(false)} onSave={(fSel,novoF)=>{
+    {showVinc&&<ModalVincular fornecedores={allFornecedores} vinculados={cot.fornecedores} itensCotacao={cot.itens} onClose={()=>setShowVinc(false)} onSave={async(fSel,novoF)=>{
       let fUpd=[...cot.fornecedores,...(fSel||[])];
-      if(novoF){onAddFornecedor(novoF);fUpd=[...fUpd,novoF];}
+      if(novoF){
+        const criado=await onAddFornecedor(novoF); // retorna fornecedor com UUID real do banco
+        fUpd=[...fUpd,criado||novoF];
+      }
       onUpdate({...cot,fornecedores:fUpd,status:"cotando"});setShowVinc(false);
     }}/>}
 
@@ -2597,7 +2606,7 @@ export default function App(){
           {view==="convites"&&can(session,"invite")&&<TelaConvites onApprove={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();setPendingCount(c=>Math.max(0,c-1));}}/>}
           {view==="plano"&&can(session,"all")&&<TelaPlanoContas onBack={()=>setView("dashboard")}/>}
           {view==="usuarios"&&can(session,"all")&&<TelaUsuarios/>}
-          {currCot&&<DetalheCotacao cotacao={currCot} allFornecedores={fornecedores} clientes={clientes} onUpdate={updCot} onDelete={deleteCot} onBack={()=>setCurrCotId(null)} onAddFornecedor={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();}} readOnly={isSindico}/>}
+          {currCot&&<DetalheCotacao cotacao={currCot} allFornecedores={fornecedores} clientes={clientes} onUpdate={updCot} onDelete={deleteCot} onBack={()=>setCurrCotId(null)} onAddFornecedor={async f=>{const criado=await fornecedoresApi.create(f);await reloadFornecedores();return criado;}} readOnly={isSindico}/>}
         </div>
 
         {/* Bottom nav (mobile) */}
