@@ -1865,6 +1865,21 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
         urgente={metaDraft.urgente||false} onUrgente={v=>setMetaDraft(p=>({...p,urgente:v}))}
         necessario={metaDraft.necessario!==false} onNecessario={v=>setMetaDraft(p=>({...p,necessario:v}))}
       />
+      <SectionDivider>Itens para Cotar</SectionDivider>
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:8}}>
+        {(metaDraft.itens||[]).map((item,idx)=>(
+          <div key={item.id} style={{display:"grid",gridTemplateColumns:"1fr 70px 80px 28px",gap:8,alignItems:"end"}}>
+            {idx===0&&<><div><Lbl>Descrição *</Lbl></div><div><Lbl>Unidade</Lbl></div><div><Lbl>Qtd</Lbl></div><div/></>}
+            <Inp value={item.descricao} onChange={v=>setMetaDraft(p=>({...p,itens:p.itens.map(i=>i.id===item.id?{...i,descricao:v}:i)}))} placeholder="Descrição do item"/>
+            <Inp value={item.unidade} onChange={v=>setMetaDraft(p=>({...p,itens:p.itens.map(i=>i.id===item.id?{...i,unidade:v}:i)}))} placeholder="un"/>
+            <Inp value={item.quantidade} onChange={v=>setMetaDraft(p=>({...p,itens:p.itens.map(i=>i.id===item.id?{...i,quantidade:v}:i)}))} type="number"/>
+            {(metaDraft.itens||[]).length>1
+              ?<button onClick={()=>setMetaDraft(p=>({...p,itens:p.itens.filter(i=>i.id!==item.id)}))} style={{background:"none",border:"none",cursor:"pointer",color:C.red,fontSize:16,padding:"6px 0"}}>✕</button>
+              :<div/>}
+          </div>
+        ))}
+      </div>
+      <Btn onClick={()=>setMetaDraft(p=>({...p,itens:[...(p.itens||[]),{id:uid(),descricao:"",unidade:"un",quantidade:1}]}))} variant="light" size="sm">＋ Item</Btn>
       <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:24}}>
         <Btn onClick={()=>setEditMeta(false)} variant="ghost">Cancelar</Btn>
         <Btn onClick={()=>{onUpdate({...cot,...metaDraft});setEditMeta(false);}} variant="navy">Salvar</Btn>
