@@ -236,6 +236,20 @@ function sanitizeUuids(payload) {
   return payload;
 }
 
+// Colunas válidas da tabela cotacoes — campos fora desta lista são descartados
+// antes do envio para evitar erro 400 quando a cotação tem campos extras no estado JS.
+const COT_COLS = new Set([
+  "titulo","descricao_aquisicao","justificativa","centros_custo","plano_contas",
+  "classificacao","urgente","necessario","status","responsavel","aprovador",
+  "cliente_id","criado_por","data_criacao","data_aprovacao","numero_pedido",
+  "itens","fornecedores","propostas","condicoes_fornecedor",
+  "historico","token_aprovacao","assinatura_sindico","anexos","os_vinculadas",
+]);
+
+function stripUnknownCols(payload) {
+  return Object.fromEntries(Object.entries(payload).filter(([k])=>COT_COLS.has(k)));
+}
+
 export const cotacoesApi = {
   list: async () => {
     const { data, error } = await supabase.from("cotacoes").select("*").order("created_at", { ascending: false });
@@ -243,14 +257,14 @@ export const cotacoesApi = {
     return listFromDb(data);
   },
   create: async (obj) => {
-    const payload = sanitizeUuids(toDb(obj));
+    const payload = stripUnknownCols(sanitizeUuids(toDb(obj)));
     if (!payload.numero_pedido) delete payload.numero_pedido;
     const { data, error } = await supabase.from("cotacoes").insert(payload).select().single();
     if (error) throw error;
     return fromDb(data);
   },
   update: async (id, fields) => {
-    const payload = sanitizeUuids(toDb(fields));
+    const payload = stripUnknownCols(sanitizeUuids(toDb(fields)));
     const { data, error } = await supabase.from("cotacoes").update(payload).eq("id", id).select().single();
     if (error) throw error;
     return fromDb(data);
