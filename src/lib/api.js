@@ -264,3 +264,42 @@ export const cotacoesApi = {
     if (error) throw error;
   },
 };
+
+// ── Usuários — criação direta via Edge Function (sem convite por email) ────
+export const usersApi = {
+  create: async (session, { nome, email, senha, role, cargo }) => {
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ nome, email, senha, role, cargo }),
+      }
+    );
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "Erro ao criar usuário");
+    return data;
+  },
+};
+
+// ── Aprovação via WhatsApp (sem login) ────────────────────────────────────
+export const aprovacaoApi = {
+  buscarPorToken: async (token) => {
+    const { data, error } = await supabase.rpc("buscar_cotacao_por_token", { p_token: token });
+    if (error) throw error;
+    return data;
+  },
+  aprovarPorToken: async (token, status, assinante, obs = null) => {
+    const { data, error } = await supabase.rpc("aprovar_cotacao_por_token", {
+      p_token: token, p_status: status, p_assinante: assinante, p_obs: obs,
+    });
+    if (error) throw error;
+    return data;
+  },
+};
+
+// ── Cotações: salvar token de aprovação + historico ───────────────────────
+// (usa cotacoesApi.update já existente)
