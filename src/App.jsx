@@ -3,6 +3,7 @@ import {
   auth, getMyProfile, profilesApi, convitesUsuarioApi,
   fornecedoresApi, clientesApi, planoContasApi, cotacoesApi, storageApi,
   convitesFornecedorApi, pendentesFornecedorApi, portalFornecedorApi,
+  usersApi, aprovacaoApi,
 } from "./lib/api";
 
 // ── Mobile context ────────────────────────────────────────────────────────────
@@ -1807,8 +1808,9 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
     <Card style={{marginTop:20,padding:"16px 20px"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div style={{fontSize:12,fontWeight:900,color:C.navy,letterSpacing:0.5}}>📎 ANEXOS ({cot.anexos.length})</div>
-        {editavel&&<label style={{cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,background:C.navy,color:C.white,borderRadius:7,padding:"5px 12px",fontSize:12,fontWeight:700}}>
-          ＋ Adicionar PDF
+        {/* Permite anexo em qualquer status exceto rejeitada — inclusive após aprovação (para nota fiscal) */}
+        {!readOnly&&cot.status!=="rejeitada"&&<label style={{cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,background:C.navy,color:C.white,borderRadius:7,padding:"5px 12px",fontSize:12,fontWeight:700}}>
+          ＋ Adicionar PDF / Nota Fiscal
           <input type="file" accept="application/pdf,image/jpeg,image/png" multiple style={{display:"none"}} onChange={async e=>{
             const files=Array.from(e.target.files);
             if(!files.length)return;
@@ -1818,12 +1820,15 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
               const meta=await storageApi.upload(cot.id,file);
               novos.push(meta);
             }
-            if(novos.length) onUpdate({...cot,anexos:[...cot.anexos,...novos]});
+            if(novos.length){
+              const entrada=criarEntradaHistorico(session?.nome||"Sistema","anexo_adicionado",`Arquivo adicionado: ${novos.map(a=>a.name).join(", ")}`);
+              onUpdate({...cot,anexos:[...cot.anexos,...novos],historico:[...(cot.historico||[]),entrada]});
+            }
             e.target.value="";
           }}/>
         </label>}
       </div>
-      {cot.anexos.length===0?<div style={{fontSize:13,color:C.gray400,textAlign:"center",padding:"12px 0"}}>Nenhum anexo ainda — adicione orçamentos, fotos ou outros documentos (PDF/JPG)</div>:
+      {cot.anexos.length===0?<div style={{fontSize:13,color:C.gray400,textAlign:"center",padding:"12px 0"}}>Nenhum anexo ainda — adicione orçamentos, fotos, notas fiscais (PDF/JPG)</div>:
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
         {cot.anexos.map((a,idx)=>(
           <div key={a.path} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:C.gray50,borderRadius:7,border:`1px solid ${C.gray200}`}}>
@@ -1831,11 +1836,59 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
             <span style={{flex:1,fontSize:13,fontWeight:600,color:C.gray800,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{String(idx+1).padStart(2,"0")}. {a.name}</span>
             <span style={{fontSize:11,color:C.gray400}}>{(a.size/1024).toFixed(0)} KB</span>
             <button onClick={async()=>{const url=await storageApi.getSignedUrl(a.path);window.open(url,"_blank");}} style={{background:C.navy,color:C.white,border:"none",borderRadius:5,padding:"3px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Abrir</button>
-            {editavel&&<button onClick={()=>{if(window.confirm("Remover este anexo?"))onUpdate({...cot,anexos:cot.anexos.filter(x=>x.path!==a.path)});}} style={{background:"none",border:"none",cursor:"pointer",color:C.red,fontSize:14,padding:"2px 4px"}}>✕</button>}
+            {!readOnly&&cot.status!=="rejeitada"&&<button onClick={()=>{if(window.confirm("Remover este anexo?"))onUpdate({...cot,anexos:cot.anexos.filter(x=>x.path!==a.path)});}} style={{background:"none",border:"none",cursor:"pointer",color:C.red,fontSize:14,padding:"2px 4px"}}>✕</button>}
           </div>
         ))}
       </div>}
     </Card>
+
+    {/* Aprovação via WhatsApp */}
+    {!readOnly&&cot.status==="fechada"&&<Card style={{marginTop:12,padding:"14px 20px",background:"#F0FDF4",border:`1px solid ${C.greenBorder}`}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:800,color:C.green}}>📲 Enviar para aprovação via WhatsApp</div>
+          <div style={{fontSize:12,color:C.gray600,marginTop:2}}>Gera um link único para o síndico aprovar ou rejeitar sem precisar fazer login.</div>
+        </div>
+        <Btn onClick={async()=>{
+          const token="APR"+Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,6).toUpperCase();
+          await cotacoesApi.update(cot.id,{tokenAprovacao:token});
+          const url=`${window.location.origin}${window.location.pathname}#aprovar-${token}`;
+          const msg=`Olá! O pedido de compra *${cot.numeroPedido} – ${cot.titulo}* está aguardando sua aprovação.\n\nAcesse o link abaixo para analisar e assinar:\n🔗 ${url}\n\nAtenciosamente,\nEquipe A3 Cotações`;
+          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank");
+        }} variant="success" size="sm">📲 Gerar Link WhatsApp</Btn>
+      </div>
+    </Card>}
+
+    {/* Assinatura do Síndico */}
+    {cot.assinaturaSindico&&<Card style={{marginTop:12,padding:"14px 20px",background:"#F0FDF4",border:`1px solid ${C.greenBorder}`}}>
+      <div style={{fontSize:11,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:6}}>ASSINATURA DIGITAL</div>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:24}}>✅</span>
+        <div>
+          <div style={{fontWeight:800,fontSize:14,color:C.green}}>{cot.assinaturaSindico.nome}</div>
+          <div style={{fontSize:12,color:C.gray400}}>{new Date(cot.assinaturaSindico.data).toLocaleString("pt-BR")} · via {cot.assinaturaSindico.via==="whatsapp"?"WhatsApp":"Sistema"}</div>
+          {cot.assinaturaSindico.obs&&<div style={{fontSize:12,color:C.gray600,marginTop:2,fontStyle:"italic"}}>{cot.assinaturaSindico.obs}</div>}
+        </div>
+      </div>
+    </Card>}
+
+    {/* Histórico */}
+    {(cot.historico||[]).length>0&&<Card style={{marginTop:12,padding:"14px 20px"}}>
+      <div style={{fontSize:11,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:10}}>📋 HISTÓRICO DE ALTERAÇÕES</div>
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {[...(cot.historico||[])].reverse().map((h,i)=>{
+          const tipo={criacao:"🆕",edicao:"✏️",status:"🔄",aprovacao:"✅",rejeicao:"❌",anexo_adicionado:"📎",anexo_removido:"🗑"}[h.tipo]||"•";
+          return <div key={i} style={{display:"flex",gap:10,padding:"7px 10px",background:C.gray50,borderRadius:7,fontSize:12}}>
+            <span style={{flexShrink:0,fontSize:14}}>{tipo}</span>
+            <div style={{flex:1}}>
+              <span style={{fontWeight:700,color:C.gray800}}>{h.descricao}</span>
+              <span style={{color:C.gray400,marginLeft:8,fontSize:11}}>{h.usuarioNome}</span>
+            </div>
+            <div style={{color:C.gray400,fontSize:11,flexShrink:0}}>{new Date(h.data).toLocaleString("pt-BR")}</div>
+          </div>;
+        })}
+      </div>
+    </Card>}
 
     {/* Modal vincular */}
     {showVinc&&<ModalVincular fornecedores={allFornecedores} vinculados={cot.fornecedores} itensCotacao={cot.itens} onClose={()=>setShowVinc(false)} onSave={async(fSel,novoF)=>{
@@ -2286,6 +2339,12 @@ function LoginScreen(){
 }
 
 // ── Tela Usuários (admin) ─────────────────────────────────────────────────────
+// Cria uma entrada de histórico padronizada
+const criarEntradaHistorico=(usuarioNome,tipo,descricao,extra={})=>({
+  data:new Date().toISOString(),
+  usuarioNome,tipo,descricao,...extra,
+});
+
 function RoleOpt({val,onSet,k}){
   const r=ROLES[k];
   return(
@@ -2299,29 +2358,31 @@ function RoleOpt({val,onSet,k}){
 function TelaUsuarios(){
   const {user:me}=useAuth();
   const [users,setUsers]=useState([]);
-  const [convites,setConvites]=useState([]);
-  const [showInv,setShowInv]=useState(false);
+  const [showForm,setShowForm]=useState(false);
+  const [nome,setNome]=useState("");
   const [email,setEmail]=useState("");
+  const [senha,setSenha]=useState("");
   const [role,setRole]=useState("comprador");
   const [cargo,setCargo]=useState("");
   const [erro,setErro]=useState("");
+  const [saving,setSaving]=useState(false);
   const [editing,setEditing]=useState(null);
 
-  const reload=async()=>{
-    const [u,c]=await Promise.all([profilesApi.list(),convitesUsuarioApi.list()]);
-    setUsers(u);setConvites(c);
-  };
+  const reload=async()=>{const u=await profilesApi.list();setUsers(u);};
   useEffect(()=>{reload();},[]);
 
-  const handleInvite=async()=>{
-    if(!email.trim()){setErro("Informe o e-mail.");return;}
-    if(convites.some(c=>c.email===email.trim())||users.some(u=>u.email===email.trim())){setErro("Este e-mail já tem acesso ou convite pendente.");return;}
-    await convitesUsuarioApi.create({email:email.trim().toLowerCase(),role,cargo});
-    setEmail("");setCargo("");setRole("comprador");setErro("");setShowInv(false);
-    await reload();
+  const handleCreate=async()=>{
+    if(!nome.trim()||!email.trim()||!senha){setErro("Nome, e-mail e senha são obrigatórios.");return;}
+    if(senha.length<6){setErro("Senha mínima de 6 caracteres.");return;}
+    setSaving(true);setErro("");
+    try{
+      const {data:{session}}=await auth.getSession();
+      await usersApi.create(session,{nome:nome.trim(),email:email.trim().toLowerCase(),senha,role,cargo});
+      setShowForm(false);setNome("");setEmail("");setSenha("");setRole("comprador");setCargo("");
+      await reload();
+    }catch(e){setErro(e.message);}
+    finally{setSaving(false);}
   };
-
-  const revokeConvite=async(id)=>{await convitesUsuarioApi.delete(id);await reload();};
 
   const saveEdit=async()=>{
     await profilesApi.update(editing.id,{role:editing.role,cargo:editing.cargo,telefone:editing.telefone,ativo:editing.ativo});
@@ -2331,64 +2392,41 @@ function TelaUsuarios(){
   return <div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
       <div><h1 style={{margin:0,fontSize:22,fontWeight:900,color:C.navy}}>Usuários</h1>
-        <div style={{fontSize:13,color:C.gray400,marginTop:2}}>{users.length} com acesso · {convites.filter(c=>!c.usado).length} convite{convites.filter(c=>!c.usado).length!==1?"s":""} pendente{convites.filter(c=>!c.usado).length!==1?"s":""}</div>
+        <div style={{fontSize:13,color:C.gray400,marginTop:2}}>{users.length} cadastrado{users.length!==1?"s":""}</div>
       </div>
-      <Btn onClick={()=>setShowInv(true)} variant="primary">＋ Convidar Usuário</Btn>
+      <Btn onClick={()=>setShowForm(true)} variant="primary">＋ Criar Usuário</Btn>
     </div>
-
-    <div style={{fontSize:11,fontWeight:900,color:C.gray600,letterSpacing:0.5,marginBottom:10}}>USUÁRIOS COM ACESSO</div>
-    <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:28}}>
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
       {users.map(u=>{
         const r=ROLES[u.role]||ROLES.comprador;
         return <Card key={u.id} style={{padding:"14px 18px",opacity:u.ativo===false?.55:1}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <div style={{width:40,height:40,borderRadius:"50%",background:r.bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:16,color:r.color,flexShrink:0,border:`2px solid ${r.color}30`}}>{u.nome.charAt(0).toUpperCase()}</div>
+              <div style={{width:40,height:40,borderRadius:"50%",background:r.bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:16,color:r.color,flexShrink:0}}>{u.nome.charAt(0).toUpperCase()}</div>
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{fontWeight:900,fontSize:15,color:C.navy}}>{u.nome}</span>
-                  {u.id===me.userId&&<span style={{fontSize:10,fontWeight:800,color:C.gray400,background:C.gray100,padding:"1px 6px",borderRadius:10}}>você</span>}
+                  {u.id===me?.userId&&<span style={{fontSize:10,background:C.gray100,color:C.gray400,padding:"1px 6px",borderRadius:10}}>você</span>}
+                  <span style={{background:r.bg,color:r.color,fontSize:11,fontWeight:800,padding:"2px 10px",borderRadius:20}}>{r.label}</span>
                 </div>
                 <div style={{fontSize:12,color:C.gray400,marginTop:2}}>{u.email}{u.cargo?` · ${u.cargo}`:""}</div>
               </div>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-              <span style={{background:r.bg,color:r.color,fontSize:11,fontWeight:800,padding:"2px 10px",borderRadius:20}}>{r.label}</span>
-              <span style={{background:u.ativo!==false?C.greenLight:C.gray100,color:u.ativo!==false?C.green:C.gray400,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:20}}>{u.ativo!==false?"Ativo":"Inativo"}</span>
-              <Btn onClick={()=>setEditing({...u})} variant="ghost" size="sm">Editar</Btn>
-            </div>
+            <Btn onClick={()=>setEditing({...u})} variant="ghost" size="sm">Editar</Btn>
           </div>
         </Card>;
       })}
     </div>
-
-    {convites.filter(c=>!c.usado).length>0&&<>
-      <div style={{fontSize:11,fontWeight:900,color:C.gray600,letterSpacing:0.5,marginBottom:10}}>CONVITES PENDENTES</div>
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {convites.filter(c=>!c.usado).map(c=>{
-          const r=ROLES[c.role]||ROLES.comprador;
-          return <Card key={c.id} style={{padding:"12px 18px"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-              <div>
-                <div style={{fontWeight:800,fontSize:14,color:C.gray800}}>{c.email}</div>
-                <div style={{fontSize:11,color:C.gray400,marginTop:2}}>Convidado para perfil: <span style={{color:r.color,fontWeight:700}}>{r.label}</span>{c.cargo?` · ${c.cargo}`:""}</div>
-              </div>
-              <Btn onClick={()=>revokeConvite(c.id)} variant="danger" size="sm">Revogar</Btn>
-            </div>
-          </Card>;
-        })}
-      </div>
-    </>}
-
-    {showInv&&<Modal title="Convidar Usuário" onClose={()=>{setShowInv(false);setErro("");}} width={440}>
-      <div style={{fontSize:13,color:C.gray600,marginBottom:18,lineHeight:1.6}}>
-        Informe o e-mail e o perfil. Quando a pessoa criar a conta com esse e-mail em "Criar Conta", ela já entra automaticamente com o perfil definido aqui.
+    {showForm&&<Modal title="Criar Usuário" onClose={()=>{setShowForm(false);setErro("");}} width={440}>
+      <div style={{fontSize:13,color:C.blue,marginBottom:16,padding:"10px 14px",background:C.blueLight,borderRadius:8}}>
+        O usuário poderá fazer login imediatamente com o e-mail e senha definidos abaixo — sem convite por e-mail.
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        <div><Lbl required>E-mail</Lbl><Inp value={email} onChange={setEmail} type="email" placeholder="pessoa@email.com"/></div>
-        <div><Lbl>Cargo / Função (opcional)</Lbl><Inp value={cargo} onChange={setCargo} placeholder="Ex: Comprador, Síndico do Wonder..."/></div>
-        <div>
-          <Lbl required>Perfil de Acesso</Lbl>
+        <div><Lbl required>Nome completo</Lbl><Inp value={nome} onChange={setNome} placeholder="Nome do usuário"/></div>
+        <div><Lbl required>E-mail</Lbl><Inp value={email} onChange={setEmail} type="email" placeholder="email@empresa.com"/></div>
+        <div><Lbl required>Senha inicial</Lbl><Inp value={senha} onChange={setSenha} type="password" placeholder="Mínimo 6 caracteres"/></div>
+        <div><Lbl>Cargo</Lbl><Inp value={cargo} onChange={setCargo} placeholder="Ex: Comprador, Síndico..."/></div>
+        <div><Lbl required>Perfil de Acesso</Lbl>
           <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:6}}>
             {Object.keys(ROLES).map(k=><RoleOpt key={k} val={role} onSet={setRole} k={k}/>)}
           </div>
@@ -2396,22 +2434,20 @@ function TelaUsuarios(){
       </div>
       {erro&&<div style={{fontSize:12,color:C.red,fontWeight:600,marginTop:12,padding:"8px 12px",background:C.redLight,borderRadius:7}}>{erro}</div>}
       <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:22}}>
-        <Btn onClick={()=>setShowInv(false)} variant="ghost">Cancelar</Btn>
-        <Btn onClick={handleInvite} variant="navy">Convidar</Btn>
+        <Btn onClick={()=>{setShowForm(false);setErro("");}} variant="ghost">Cancelar</Btn>
+        <Btn onClick={handleCreate} variant="navy" disabled={saving}>{saving?"Criando...":"Criar Usuário"}</Btn>
       </div>
     </Modal>}
-
     {editing&&<Modal title="Editar Usuário" onClose={()=>setEditing(null)} width={420}>
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        <div><Lbl>Cargo / Função</Lbl><Inp value={editing.cargo||""} onChange={v=>setEditing(p=>({...p,cargo:v}))}/></div>
+        <div><Lbl>Cargo</Lbl><Inp value={editing.cargo||""} onChange={v=>setEditing(p=>({...p,cargo:v}))}/></div>
         <div><Lbl>Telefone</Lbl><Inp value={editing.telefone||""} onChange={v=>setEditing(p=>({...p,telefone:v}))} mask="tel"/></div>
-        <div>
-          <Lbl>Perfil de Acesso</Lbl>
+        <div><Lbl>Perfil</Lbl>
           <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:6}}>
             {Object.keys(ROLES).map(k=><RoleOpt key={k} val={editing.role} onSet={v=>setEditing(p=>({...p,role:v}))} k={k}/>)}
           </div>
         </div>
-        {editing.id!==me.userId&&<Toggle value={editing.ativo!==false} onChange={v=>setEditing(p=>({...p,ativo:v}))} label="Usuário ativo"/>}
+        {editing.id!==me?.userId&&<Toggle value={editing.ativo!==false} onChange={v=>setEditing(p=>({...p,ativo:v}))} label="Usuário ativo"/>}
       </div>
       <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:22}}>
         <Btn onClick={()=>setEditing(null)} variant="ghost">Cancelar</Btn>
@@ -2419,6 +2455,104 @@ function TelaUsuarios(){
       </div>
     </Modal>}
   </div>;
+}
+
+// ── Portal de Aprovação via WhatsApp (sem login) ──────────────────────────
+function PortalAprovacao({token,onBack}){
+  const [step,setStep]=useState("carregando");
+  const [cotacao,setCotacao]=useState(null);
+  const [assinante,setAssinante]=useState("");
+  const [obs,setObs]=useState("");
+  const [erro,setErro]=useState("");
+  const [saving,setSaving]=useState(false);
+
+  useEffect(()=>{
+    aprovacaoApi.buscarPorToken(token).then(r=>{
+      if(!r.ok){setErro(r.erro);setStep("erro");}
+      else{setCotacao(r);setStep("dados");}
+    }).catch(e=>{setErro(e.message);setStep("erro");});
+  },[token]);
+
+  const fmt=(v)=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+  const getProp=(fid,iid)=>(cotacao?.propostas||[]).find(p=>p.fornecedorId===fid&&p.itemId===iid);
+  const totalF=(fid)=>(cotacao?.itens||[]).reduce((s,i)=>{const p=getProp(fid,i.id);return s+(p?p.preco*i.quantidade:0);},0);
+
+  const handleDecisao=async(status)=>{
+    if(!assinante.trim()){setErro("Digite seu nome para confirmar a decisão.");return;}
+    setSaving(true);setErro("");
+    try{
+      const r=await aprovacaoApi.aprovarPorToken(token,status,assinante.trim(),obs.trim()||null);
+      if(!r.ok){setErro(r.erro);setSaving(false);return;}
+      setStep("feito");setCotacao(c=>({...c,statusFinal:status}));
+    }catch(e){setErro(e.message);setSaving(false);}
+  };
+
+  const shell=(ch)=>(
+    <div style={{minHeight:"100vh",background:C.navy,fontFamily:"'DM Sans',sans-serif"}}>
+      <div style={{background:"rgba(0,0,0,.2)",padding:"12px 20px",display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:32,height:32,background:C.amber,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:C.navy,fontSize:13}}>A3</div>
+        <div><div style={{fontWeight:900,fontSize:13,color:C.white}}>Portal de Aprovação · A3 Cotações</div>
+          {cotacao?.numeroPedido&&<div style={{fontSize:10,color:"rgba(255,255,255,.4)"}}>{cotacao.numeroPedido}</div>}
+        </div>
+      </div>
+      <div style={{padding:"16px",maxWidth:620,margin:"0 auto"}}>{ch}</div>
+    </div>
+  );
+
+  if(step==="carregando") return shell(<div style={{color:"rgba(255,255,255,.5)",textAlign:"center",marginTop:60}}>Carregando...</div>);
+  if(step==="erro") return shell(<Card style={{marginTop:20,padding:28,textAlign:"center"}}>
+    <div style={{fontSize:32,marginBottom:10}}>⚠️</div>
+    <div style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:8}}>{erro}</div>
+    <div style={{fontSize:13,color:C.gray600}}>Entre em contato com o responsável pela cotação.</div>
+  </Card>);
+  if(step==="feito") return shell(<Card style={{marginTop:20,padding:32,textAlign:"center"}}>
+    <div style={{fontSize:48,marginBottom:12}}>{cotacao.statusFinal==="aprovada"?"✅":"❌"}</div>
+    <div style={{fontWeight:900,fontSize:18,color:cotacao.statusFinal==="aprovada"?C.green:C.red,marginBottom:8}}>
+      {cotacao.statusFinal==="aprovada"?"Cotação Aprovada!":"Cotação Rejeitada"}
+    </div>
+    <div style={{fontSize:13,color:C.gray600,lineHeight:1.6}}>
+      Assinado por <strong>{assinante}</strong> em {new Date().toLocaleString("pt-BR")}.<br/>
+      Esta decisão foi registrada no sistema.
+    </div>
+  </Card>);
+
+  const fors=cotacao?.fornecedores||[];
+  const totals=fors.map(f=>({id:f.id,nome:f.nomeFantasia||f.razaoSocial,total:totalF(f.id)})).filter(t=>t.total>0);
+  const vencedor=totals.length?totals.reduce((a,b)=>a.total<b.total?a:b):null;
+
+  return shell(<>
+    <Card style={{marginTop:16,padding:18,marginBottom:12}}>
+      <div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:4}}>COTAÇÃO PARA APROVAÇÃO</div>
+      <div style={{fontWeight:900,fontSize:17,color:C.navy,marginBottom:4}}>{cotacao.titulo}</div>
+      <div style={{fontSize:12,color:C.gray400}}>{cotacao.numeroPedido} · {cotacao.responsavel||"—"}</div>
+      {cotacao.descricaoAquisicao&&<div style={{fontSize:13,color:C.gray600,marginTop:8,lineHeight:1.5}}>{cotacao.descricaoAquisicao}</div>}
+      {cotacao.justificativa&&<div style={{fontSize:12,color:C.gray600,marginTop:6,fontStyle:"italic"}}>{cotacao.justificativa}</div>}
+    </Card>
+    {(cotacao?.itens||[]).length>0&&<Card style={{marginBottom:12,padding:14}}>
+      <div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:8}}>ITENS SOLICITADOS</div>
+      {(cotacao.itens||[]).map(item=><div key={item.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${C.gray100}`,fontSize:13}}>
+        <span>{item.descricao}</span><span style={{color:C.gray400,marginLeft:12,flexShrink:0}}>{item.quantidade} {item.unidade}</span>
+      </div>)}
+    </Card>}
+    {totals.length>0&&<Card style={{marginBottom:12,padding:14}}>
+      <div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:8}}>COMPARATIVO DE PREÇOS</div>
+      {totals.map(t=><div key={t.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 10px",borderRadius:7,marginBottom:4,background:vencedor?.id===t.id?C.greenLight:C.gray50,border:`1px solid ${vencedor?.id===t.id?C.greenBorder:C.gray200}`}}>
+        <span style={{fontWeight:700,fontSize:13,color:vencedor?.id===t.id?C.green:C.gray800}}>{vencedor?.id===t.id?"★ ":""}{t.nome}</span>
+        <span style={{fontWeight:900,fontSize:14,color:vencedor?.id===t.id?C.green:C.navy}}>{fmt(t.total)}</span>
+      </div>)}
+      {vencedor&&<div style={{marginTop:8,fontSize:12,color:C.green,fontWeight:700,textAlign:"center"}}>Menor valor: {vencedor.nome} — {fmt(vencedor.total)}</div>}
+    </Card>}
+    <Card style={{padding:18}}>
+      <div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:12}}>SUA DECISÃO</div>
+      <div style={{marginBottom:12}}><Lbl required>Nome completo (assinatura digital)</Lbl><Inp value={assinante} onChange={setAssinante} placeholder="Digite seu nome"/></div>
+      <div style={{marginBottom:16}}><Lbl>Observação (opcional)</Lbl><Inp value={obs} onChange={setObs} placeholder="Comentário sobre a decisão..." rows={2}/></div>
+      {erro&&<div style={{fontSize:12,color:C.red,fontWeight:600,marginBottom:12,padding:"8px 12px",background:C.redLight,borderRadius:7}}>{erro}</div>}
+      <div style={{display:"flex",gap:10}}>
+        <Btn onClick={()=>handleDecisao("rejeitada")} variant="danger" disabled={saving} style={{flex:1,justifyContent:"center"}}>✕ Rejeitar</Btn>
+        <Btn onClick={()=>handleDecisao("aprovada")} variant="success" disabled={saving} style={{flex:1,justifyContent:"center"}}>✔ Aprovar</Btn>
+      </div>
+    </Card>
+  </>);
 }
 
 // ── App ──────────────────────────────────────────────────────────────────────
@@ -2434,14 +2568,16 @@ export default function App(){
   const [showNova,setShowNova]=useState(false);
   const [loaded,setLoaded]=useState(false);
   const [supplierMode,setSupplierMode]=useState(false);
+  const [approvalToken,setApprovalToken]=useState(null);
   const [pendingCount,setPendingCount]=useState(0);
 
   const authCtx={user:session,logout:()=>auth.signOut()};
 
-  // Detecta link de convite de fornecedor na URL (não depende de login)
+  // Detecta link de convite de fornecedor ou aprovação na URL (não depende de login)
   useEffect(()=>{
-    const hash=window.location.hash.replace("#","").trim().toUpperCase();
-    if(hash.match(/^A3-[A-Z0-9]{6}$/)) setSupplierMode(true);
+    const hash=window.location.hash.replace("#","").trim();
+    if(hash.toUpperCase().match(/^A3-[A-Z0-9]{6}$/)) setSupplierMode(true);
+    if(hash.startsWith("aprovar-")) setApprovalToken(hash.replace("aprovar-",""));
   },[]);
 
   // Sessão Supabase: checa ao montar e escuta mudanças (login/logout)
@@ -2499,18 +2635,29 @@ export default function App(){
   };
 
   const updCot=useCallback(async(u)=>{
+    // Monta entrada de histórico
+    const entrada=criarEntradaHistorico(
+      session?.nome||"Sistema",
+      u._aprovar?(u.status==="aprovada"?"aprovacao":"rejeicao"):"edicao",
+      u._aprovar?(u.status==="aprovada"?"Cotação aprovada":"Cotação rejeitada"):
+        u.status!==cotacoes.find(c=>c.id===u.id)?.status?
+          `Status alterado para "${u.status}"` : "Informações editadas",
+      {statusAnterior:cotacoes.find(c=>c.id===u.id)?.status,statusNovo:u.status}
+    );
+    const historico=[...(u.historico||cotacoes.find(c=>c.id===u.id)?.historico||[]),entrada];
+
     if(u._aprovar){
       await cotacoesApi.aprovar(u.id,u.status);
+      await cotacoesApi.update(u.id,{historico});
     }else{
       const {id,createdAt,updatedAt,criadoPor,_aprovar,...fields}=u;
-      await cotacoesApi.update(u.id,fields);
+      await cotacoesApi.update(u.id,{...fields,historico});
     }
     const fresh=await cotacoesApi.list();
     setCotacoes(fresh);
-    // Atualiza a cotação aberta com os dados frescos do banco
     const atualizada=fresh.find(c=>c.id===u.id);
     if(atualizada) setCurrCot(atualizada);
-  },[]);
+  },[cotacoes,session]);
 
   const deleteCot=async(id)=>{
     await cotacoesApi.delete(id);
@@ -2518,6 +2665,12 @@ export default function App(){
     if(currCot?.id===id){setCurrCot(null);setView("dashboard");}
   };
 
+
+  if(approvalToken) return(
+    <MobileCtx.Provider value={isMobile}><AuthCtx.Provider value={{user:null,logout:()=>{}}}>
+      <PortalAprovacao token={approvalToken} onBack={()=>{setApprovalToken(null);window.location.hash="";}}/>
+    </AuthCtx.Provider></MobileCtx.Provider>
+  );
 
   if(supplierMode) return(
     <MobileCtx.Provider value={isMobile}><AuthCtx.Provider value={authCtx}>
