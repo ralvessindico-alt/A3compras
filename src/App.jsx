@@ -922,7 +922,6 @@ const DEMO_COTACAO={
 function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
   const {user}=useAuth();
   const mob=useMobile();
-  const [showDemo,setShowDemo]=useState(false);
   const [search,setSearch]=useState("");
   const [filtroStatus,setFiltroStatus]=useState("todos");
 
@@ -947,16 +946,6 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
     if(window.confirm("Excluir esta cotação? A ação não pode ser desfeita.")) onDelete(id);
   };
 
-  const openDemoPDF=()=>{
-    const html=generatePrintHTML(DEMO_COTACAO);
-    const blob=new Blob([html],{type:"text/html;charset=utf-8"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;a.target="_blank";a.rel="noopener noreferrer";
-    document.body.appendChild(a);a.click();
-    document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(url),5000);
-  };
 
   return <div>
     {/* Stats */}
@@ -989,12 +978,6 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
         ))}
       </div>
     </div>
-
-    {/* Banner demo */}
-    <Card style={{marginBottom:12,padding:"12px 16px",background:"linear-gradient(135deg,#EEF1FB,#F5F3FF)",border:`1px solid #C7D2FE`,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-      <div style={{fontSize:12,color:C.navy,fontWeight:700}}>👁 Ver exemplo de Pedido de Compra preenchido</div>
-      <Btn onClick={()=>setShowDemo(true)} variant="navy" size="sm">Abrir Demo →</Btn>
-    </Card>
 
     {/* Lista */}
     {cotacoes.length===0?(
@@ -1045,7 +1028,6 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
       </div>
     )}
 
-    {showDemo&&<PedidoView cotacao={DEMO_COTACAO} onClose={()=>setShowDemo(false)}/>}
   </div>;
 }
 
@@ -2566,73 +2548,110 @@ export default function App(){
         button,input,select,textarea{font-family:'DM Sans',sans-serif;}
         @media print{
           @page{size:A4 landscape;margin:10mm;}
-          body>*{display:none!important;}
-          #a3-print-area{display:block!important;position:fixed!important;inset:0!important;z-index:99999!important;background:#fff!important;overflow:auto!important;}
-          #a3-print-area .no-print{display:none!important;}
+          body *{visibility:hidden !important;}
+          #a3-print-area,#a3-print-area *{visibility:visible !important;}
+          #a3-print-area{position:fixed !important;top:0 !important;left:0 !important;width:100% !important;height:auto !important;z-index:99999 !important;background:#fff !important;}
+          #a3-print-area .no-print{display:none !important;}
         }
       `}</style>
-      <div style={{fontFamily:"'DM Sans',sans-serif",minHeight:"100vh",background:C.gray50,paddingBottom:isMobile?72:0}}>
+      <div style={{fontFamily:"'DM Sans',sans-serif",minHeight:"100vh",background:"#F1F5F9",display:"flex"}}>
 
-        {/* Topbar */}
-        <div style={{background:C.white,borderBottom:`2px solid ${C.amber}`,padding:`0 ${isMobile?14:20}px`,height:isMobile?52:56,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:isMobile?8:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>{setCurrCot(null);setView("dashboard");}}>
-              <div style={{width:32,height:32,background:`linear-gradient(135deg,${C.amber},${C.amberDark})`,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:C.navy,fontSize:13,flexShrink:0}}>A3</div>
-              {!isMobile&&<div><div style={{fontWeight:900,fontSize:14,color:C.navy,lineHeight:1.1}}>A3 Cotações</div><div style={{fontSize:10,color:C.gray400,fontWeight:600}}>Gestão de Compras</div></div>}
-              {isMobile&&<div style={{fontWeight:900,fontSize:15,color:C.navy}}>{isInCotacao?currCot?.titulo?.slice(0,20)+(currCot?.titulo?.length>20?"…":""):NAV.find(n=>n.id===view)?.label||"A3"}</div>}
+        {/* ── Sidebar (desktop) ────────────────────────────────────────── */}
+        {!isMobile&&(
+          <div style={{width:220,flexShrink:0,background:C.navy,minHeight:"100vh",display:"flex",flexDirection:"column",position:"sticky",top:0,height:"100vh",overflowY:"auto"}}>
+            {/* Logo */}
+            <div style={{padding:"24px 20px 20px",borderBottom:"1px solid rgba(255,255,255,.08)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>{setCurrCot(null);setView("dashboard");}}>
+                <div style={{width:36,height:36,background:`linear-gradient(135deg,${C.amber},${C.amberDark})`,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:C.navy,fontSize:15,flexShrink:0}}>A3</div>
+                <div>
+                  <div style={{fontWeight:900,fontSize:14,color:C.white,lineHeight:1.2}}>A3 Cotações</div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,.4)",fontWeight:600}}>Gestão de Compras</div>
+                </div>
+              </div>
             </div>
-            {!isMobile&&<nav style={{display:"flex",gap:2}}>
-              {NAV.map(n=>{const active=view===n.id||(n.id==="dashboard"&&isInCotacao);return(
-                <button key={n.id} onClick={()=>{setCurrCot(null);setView(n.id);}} style={{background:active?C.navy:"transparent",color:active?C.white:C.gray600,border:"none",borderRadius:7,padding:"5px 12px",fontWeight:700,fontSize:12,cursor:"pointer",transition:"all .15s",display:"flex",alignItems:"center",gap:5}}>
-                  {n.icon} {n.label}
-                  {n.badge>0&&<span style={{background:C.red,color:C.white,borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{n.badge}</span>}
+            {/* Nav items */}
+            <nav style={{flex:1,padding:"12px 10px"}}>
+              {NAV.map(n=>{
+                const active=view===n.id||(n.id==="dashboard"&&isInCotacao);
+                return(
+                  <button key={n.id} onClick={()=>{setCurrCot(null);setView(n.id);}} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:9,border:"none",cursor:"pointer",marginBottom:2,fontWeight:active?800:600,fontSize:13,transition:"all .15s",background:active?"rgba(255,255,255,.12)":"transparent",color:active?C.white:"rgba(255,255,255,.55)",textAlign:"left",position:"relative"}}>
+                    <span style={{fontSize:16,lineHeight:1,flexShrink:0}}>{n.icon}</span>
+                    <span style={{flex:1}}>{n.label}</span>
+                    {n.badge>0&&<span style={{background:C.red,color:C.white,borderRadius:10,padding:"1px 6px",fontSize:10,fontWeight:900}}>{n.badge}</span>}
+                    {active&&<div style={{position:"absolute",left:0,top:"20%",bottom:"20%",width:3,background:C.amber,borderRadius:"0 3px 3px 0"}}/>}
+                  </button>
+                );
+              })}
+              {can(session,"create")&&(
+                <button onClick={()=>setShowNova(true)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"10px 12px",borderRadius:9,border:"none",cursor:"pointer",marginTop:8,fontWeight:800,fontSize:13,background:C.amber,color:C.navy,transition:"all .15s"}}>
+                  ＋ Nova Cotação
                 </button>
-              );})}
-            </nav>}
-          </div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            <div style={{display:"flex",alignItems:"center",gap:6,background:role.bg,borderRadius:20,padding:"4px 10px 4px 8px"}}>
-              <div style={{width:22,height:22,borderRadius:"50%",background:role.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900,color:C.white}}>{session.nome.charAt(0).toUpperCase()}</div>
-              {!isMobile&&<span style={{fontSize:11,fontWeight:800,color:role.color}}>{session.nome.split(" ")[0]}</span>}
-              <button onClick={()=>auth.signOut()} style={{background:"none",border:"none",cursor:"pointer",color:role.color,fontSize:11,fontWeight:700,padding:0,opacity:.7}}>Sair</button>
+              )}
+            </nav>
+            {/* User footer */}
+            <div style={{padding:"14px 16px",borderTop:"1px solid rgba(255,255,255,.08)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                <div style={{width:32,height:32,borderRadius:"50%",background:role.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:C.white,flexShrink:0}}>{session.nome.charAt(0).toUpperCase()}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:800,color:C.white,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.nome.split(" ")[0]}</div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,.4)"}}>{role.label}</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:6}}>
+                <button onClick={()=>setSupplierMode(true)} style={{flex:1,background:"rgba(255,255,255,.08)",border:"none",color:"rgba(255,255,255,.6)",borderRadius:7,padding:"5px 8px",cursor:"pointer",fontSize:11,fontWeight:600}}>🏭 Portal</button>
+                <button onClick={()=>auth.signOut()} style={{flex:1,background:"rgba(255,255,255,.08)",border:"none",color:"rgba(255,255,255,.6)",borderRadius:7,padding:"5px 8px",cursor:"pointer",fontSize:11,fontWeight:600}}>Sair</button>
+              </div>
             </div>
-            {!isMobile&&<Btn onClick={()=>setSupplierMode(true)} variant="ghost" size="sm">🏭 Portal</Btn>}
-            {can(session,"create")&&<Btn onClick={()=>setShowNova(true)} variant="primary" size="sm">＋{!isMobile?" Cotação":""}</Btn>}
+          </div>
+        )}
+
+        {/* ── Main content ─────────────────────────────────────────────── */}
+        <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",minHeight:"100vh"}}>
+          {/* Mobile topbar */}
+          {isMobile&&(
+            <div style={{background:C.navy,padding:"0 16px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 10px rgba(0,0,0,.15)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}} onClick={()=>{setCurrCot(null);setView("dashboard");}}>
+                <div style={{width:30,height:30,background:C.amber,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:C.navy,fontSize:13}}>A3</div>
+                <span style={{fontWeight:900,fontSize:15,color:C.white}}>{isInCotacao?currCot?.titulo?.slice(0,22)+(currCot?.titulo?.length>22?"…":""):NAV.find(n=>n.id===view)?.label||"Cotações"}</span>
+              </div>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                {can(session,"create")&&<Btn onClick={()=>setShowNova(true)} variant="primary" size="sm">＋</Btn>}
+                <button onClick={()=>auth.signOut()} style={{background:"rgba(255,255,255,.15)",border:"none",color:C.white,borderRadius:7,padding:"5px 10px",cursor:"pointer",fontSize:11,fontWeight:700}}>Sair</button>
+              </div>
+            </div>
+          )}
+
+          {/* Page content */}
+          <div style={{flex:1,padding:isMobile?"14px 12px":"28px 32px",paddingBottom:isMobile?80:28,maxWidth:isMobile?"100%":1080,width:"100%"}}>
+            {view==="dashboard"&&!currCot&&<Dashboard cotacoes={cotacoesVisiveis} fornecedores={fornecedores} onCreate={()=>setShowNova(true)} onOpen={(id)=>{const c=cotacoesVisiveis.find(x=>x.id===id);if(c)setCurrCot(c);}} onDelete={deleteCot}/>}
+            {view==="fornecedores"&&can(session,"manage_fornecedores")&&<TelaFornecedores fornecedores={fornecedores}
+              onAdd={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();}}
+              onEdit={async f=>{const {id,criadoEm,...rest}=f;await fornecedoresApi.update(id,rest);await reloadFornecedores();}}
+              onDelete={async id=>{await fornecedoresApi.delete(id);await reloadFornecedores();}}/>}
+            {view==="clientes"&&can(session,"manage_fornecedores")&&<TelaClientes clientes={clientes}
+              onAdd={async c=>{await clientesApi.create(c);await reloadClientes();}}
+              onEdit={async c=>{const {id,criadoEm,...rest}=c;await clientesApi.update(id,rest);await reloadClientes();}}
+              onDelete={async id=>{await clientesApi.delete(id);await reloadClientes();}}/>}
+            {view==="convites"&&can(session,"invite")&&<TelaConvites onApprove={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();setPendingCount(c=>Math.max(0,c-1));}}/>}
+            {view==="plano"&&can(session,"all")&&<TelaPlanoContas onBack={()=>setView("dashboard")}/>}
+            {view==="usuarios"&&can(session,"all")&&<TelaUsuarios/>}
+            {currCot&&<DetalheCotacao cotacao={currCot} allFornecedores={fornecedores} clientes={clientes} onUpdate={updCot} onDelete={deleteCot} onBack={()=>setCurrCot(null)} onAddFornecedor={async f=>{const criado=await fornecedoresApi.create(f);await reloadFornecedores();return criado;}} readOnly={isSindico}/>}
           </div>
         </div>
 
-        {/* Conteúdo */}
-        <div style={{maxWidth:1040,margin:"0 auto",padding:isMobile?"14px 12px 8px":"28px 18px"}}>
-          {view==="dashboard"&&!currCot&&<Dashboard cotacoes={cotacoesVisiveis} fornecedores={fornecedores} onCreate={()=>setShowNova(true)} onOpen={(id)=>{const c=cotacoesVisiveis.find(x=>x.id===id);if(c)setCurrCot(c);}} onDelete={deleteCot}/>}
-          {view==="fornecedores"&&can(session,"manage_fornecedores")&&<TelaFornecedores fornecedores={fornecedores}
-            onAdd={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();}}
-            onEdit={async f=>{const {id,criadoEm,...rest}=f;await fornecedoresApi.update(id,rest);await reloadFornecedores();}}
-            onDelete={async id=>{await fornecedoresApi.delete(id);await reloadFornecedores();}}/>}
-          {view==="clientes"&&can(session,"manage_fornecedores")&&<TelaClientes clientes={clientes}
-            onAdd={async c=>{await clientesApi.create(c);await reloadClientes();}}
-            onEdit={async c=>{const {id,criadoEm,...rest}=c;await clientesApi.update(id,rest);await reloadClientes();}}
-            onDelete={async id=>{await clientesApi.delete(id);await reloadClientes();}}/>}
-          {view==="convites"&&can(session,"invite")&&<TelaConvites onApprove={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();setPendingCount(c=>Math.max(0,c-1));}}/>}
-          {view==="plano"&&can(session,"all")&&<TelaPlanoContas onBack={()=>setView("dashboard")}/>}
-          {view==="usuarios"&&can(session,"all")&&<TelaUsuarios/>}
-          {currCot&&<DetalheCotacao cotacao={currCot} allFornecedores={fornecedores} clientes={clientes} onUpdate={updCot} onDelete={deleteCot} onBack={()=>setCurrCot(null)} onAddFornecedor={async f=>{const criado=await fornecedoresApi.create(f);await reloadFornecedores();return criado;}} readOnly={isSindico}/>}
-        </div>
-
-        {/* Bottom nav (mobile) */}
-        {isMobile&&<div style={{position:"fixed",bottom:0,left:0,right:0,background:C.white,borderTop:`1px solid ${C.gray200}`,display:"flex",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,.08)",paddingBottom:"env(safe-area-inset-bottom)"}}>
-          {NAV.map(n=>{const active=view===n.id||(n.id==="dashboard"&&isInCotacao);return(
-            <button key={n.id} onClick={()=>{setCurrCot(null);setView(n.id);}} style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"10px 4px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,position:"relative"}}>
-              <span style={{fontSize:20,lineHeight:1}}>{n.icon}</span>
-              <span style={{fontSize:10,fontWeight:active?800:600,color:active?C.navy:C.gray400}}>{n.label}</span>
-              {n.badge>0&&<span style={{position:"absolute",top:6,right:"calc(50% - 14px)",background:C.red,color:C.white,borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{n.badge}</span>}
-              {active&&<div style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:C.navy,borderRadius:"2px 2px 0 0"}}/>}
-            </button>
-          );})}
-          <button onClick={()=>setSupplierMode(true)} style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"10px 4px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-            <span style={{fontSize:20,lineHeight:1}}>🔑</span>
-            <span style={{fontSize:10,fontWeight:600,color:C.gray400}}>Portal</span>
-          </button>
-        </div>}
+        {/* ── Bottom nav (mobile) ───────────────────────────────────────── */}
+        {isMobile&&(
+          <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.white,borderTop:`1px solid ${C.gray200}`,display:"flex",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,.08)",paddingBottom:"env(safe-area-inset-bottom)"}}>
+            {NAV.slice(0,5).map(n=>{const active=view===n.id||(n.id==="dashboard"&&isInCotacao);return(
+              <button key={n.id} onClick={()=>{setCurrCot(null);setView(n.id);}} style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"10px 4px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,position:"relative"}}>
+                <span style={{fontSize:18,lineHeight:1}}>{n.icon}</span>
+                <span style={{fontSize:9,fontWeight:active?800:600,color:active?C.navy:C.gray400}}>{n.label}</span>
+                {n.badge>0&&<span style={{position:"absolute",top:6,right:"calc(50% - 12px)",background:C.red,color:C.white,borderRadius:"50%",width:14,height:14,fontSize:8,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{n.badge}</span>}
+                {active&&<div style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:C.navy,borderRadius:"2px 2px 0 0"}}/>}
+              </button>
+            );})}
+          </div>
+        )}
       </div>
       {showNova&&can(session,"create")&&<ModalNovaCotacao onClose={()=>setShowNova(false)} onSave={createCot} fornecedores={fornecedores} clientes={clientes}/>}
     </AuthCtx.Provider>
