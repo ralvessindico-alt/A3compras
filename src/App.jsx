@@ -88,6 +88,7 @@ const getPath=(lista,item)=>{
 };
 
 const STATUS_COLORS={
+  rascunho:{bg:"#F3F4F6",color:"#6B7280",border:"#D1D5DB"},
   aberta:{bg:C.yellowLight,color:C.yellow,border:"#FDE68A"},
   cotando:{bg:C.blueLight,color:C.blue,border:"#BFDBFE"},
   fechada:{bg:C.greenLight,color:C.green,border:C.greenBorder},
@@ -98,7 +99,7 @@ const STATUS_COLORS={
 // ── UI Base ──────────────────────────────────────────────────────────────────
 function Badge({status}){
   const s=STATUS_COLORS[status]||STATUS_COLORS.aberta;
-  const labels={aberta:"Aberta",cotando:"Em Cotação",fechada:"Encerrada",aprovada:"Aprovada",rejeitada:"Rejeitada"};
+  const labels={rascunho:"Rascunho",aberta:"Aberta",cotando:"Em Cotação",fechada:"Encerrada",aprovada:"Aprovada",rejeitada:"Rejeitada"};
   return <span style={{background:s.bg,color:s.color,border:`1px solid ${s.border}`,borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:800,letterSpacing:0.3}}>{labels[status]}</span>;
 }
 
@@ -828,9 +829,10 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
   const [fornSel,setFornSel]=useState([]);
   const toggleF=(id)=>setFornSel(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
   const canSave=c.titulo.trim()&&c.itens.some(i=>i.descricao.trim());
-  const handleSave=()=>{
+  const handleSave=(comoRascunho=false)=>{
     const fSel=fornecedores.filter(f=>fornSel.includes(f.id));
-    onSave({...c,titulo:c.titulo.trim(),itens:c.itens.filter(i=>i.descricao.trim()),fornecedores:fSel,status:fSel.length?"cotando":"aberta"});
+    onSave({...c,titulo:c.titulo.trim(),itens:c.itens.filter(i=>i.descricao.trim()),fornecedores:fSel,
+      status:comoRascunho?"rascunho":(fSel.length?"cotando":"aberta")});
   };
   return <Modal title="Nova Cotação de Compra" onClose={onClose} width={700}>
     <SectionDivider>Identificação do Pedido</SectionDivider>
@@ -876,7 +878,8 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
     </>}
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:24}}>
       <Btn onClick={onClose} variant="ghost">Cancelar</Btn>
-      <Btn onClick={handleSave} variant="navy" disabled={!canSave}>Criar Cotação</Btn>
+      <Btn onClick={()=>handleSave(true)} variant="light" disabled={!canSave}>💾 Rascunho</Btn>
+      <Btn onClick={()=>handleSave(false)} variant="navy" disabled={!canSave}>Criar Cotação</Btn>
     </div>
   </Modal>;
 }
@@ -919,7 +922,7 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
   const [search,setSearch]=useState("");
   const [filtroStatus,setFiltroStatus]=useState("todos");
 
-  const st={total:cotacoes.length,abertas:cotacoes.filter(c=>c.status==="aberta").length,cotando:cotacoes.filter(c=>c.status==="cotando").length,fechadas:cotacoes.filter(c=>c.status==="fechada").length};
+  const st={total:cotacoes.length,rascunhos:cotacoes.filter(c=>c.status==="rascunho").length,abertas:cotacoes.filter(c=>c.status==="aberta").length,cotando:cotacoes.filter(c=>c.status==="cotando").length,fechadas:cotacoes.filter(c=>c.status==="fechada").length};
 
   const filtradas=[...cotacoes].reverse().filter(c=>{
     const matchSearch=!search||[c.titulo,c.numeroPedido,c.responsavel].some(v=>v?.toLowerCase().includes(search.toLowerCase()));
@@ -929,6 +932,7 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
 
   const STATUS_FILTROS=[
     {id:"todos",label:"Todas"},
+    {id:"rascunho",label:"Rascunhos"},
     {id:"aberta",label:"Abertas"},
     {id:"cotando",label:"Em Cotação"},
     {id:"fechada",label:"Encerradas"},
@@ -953,8 +957,8 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
   return <div>
     {/* Stats */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:14,marginBottom:24}}>
-      {[{l:"Cotações",v:st.total,color:C.navy},{l:"Abertas",v:st.abertas,color:C.yellow},{l:"Em Cotação",v:st.cotando,color:C.blue},{l:"Encerradas",v:st.fechadas,color:C.green},{l:"Fornecedores",v:fornecedores.length,color:C.amberDark}].map(s=>(
-        <Card key={s.l} style={{padding:"16px 18px",borderLeft:`4px solid ${s.color}`,cursor:s.l!=="Fornecedores"?"pointer":"default"}} onClick={()=>s.l!=="Fornecedores"&&setFiltroStatus(s.l==="Cotações"?"todos":s.l==="Abertas"?"aberta":s.l==="Em Cotação"?"cotando":"fechada")}>
+      {[{l:"Cotações",v:st.total,color:C.navy,f:"todos"},{l:"Rascunhos",v:st.rascunhos,color:"#6B7280",f:"rascunho"},{l:"Abertas",v:st.abertas,color:C.yellow,f:"aberta"},{l:"Em Cotação",v:st.cotando,color:C.blue,f:"cotando"},{l:"Encerradas",v:st.fechadas,color:C.green,f:"fechada"},{l:"Fornecedores",v:fornecedores.length,color:C.amberDark,f:null}].map(s=>(
+        <Card key={s.l} style={{padding:"16px 18px",borderLeft:`4px solid ${s.color}`,cursor:s.f?"pointer":"default"}} onClick={()=>s.f&&setFiltroStatus(s.f)}>
           <div style={{fontSize:26,fontWeight:900,color:s.color}}>{s.v}</div>
           <div style={{fontSize:12,color:C.gray600,fontWeight:700,marginTop:2}}>{s.l}</div>
         </Card>
@@ -2520,7 +2524,7 @@ export default function App(){
   const role=ROLES[session.role]||ROLES.comprador;
   const isInCotacao=!!currCot;
   const isSindico=session.role==="sindico";
-  const cotacoesVisiveis=cotacoes; // todos os perfis veem todas as cotações; síndico não pode editar
+  const cotacoesVisiveis=isSindico?cotacoes.filter(c=>c.status!=="rascunho"):cotacoes;
 
   const NAV=[
     {id:"dashboard",icon:"📋",label:"Cotações"},
