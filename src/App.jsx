@@ -1011,7 +1011,10 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
       </Card>
     ):(
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {filtradas.map(c=>(
+        {filtradas.map(c=>{
+          const itens=Array.isArray(c.itens)?c.itens:[];
+          const fors=Array.isArray(c.fornecedores)?c.fornecedores:[];
+          return(
           <Card key={c.id} style={{padding:"14px 18px",cursor:"pointer",transition:"box-shadow .15s"}}
             onClick={()=>onOpen(c.id)}
             onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(27,46,138,.12)"}
@@ -1023,7 +1026,7 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
                   <span style={{fontSize:11,fontWeight:700,color:C.gray400}}>{c.numeroPedido}</span>
                 </div>
                 <div style={{fontSize:12,color:C.gray400,marginTop:3}}>
-                  {c.dataCriacao} · {c.responsavel||"—"} · {c.itens.length} iten{c.itens.length!==1?"s":""} · {c.fornecedores.length} fornecedor{c.fornecedores.length!==1?"es":""}
+                  {c.dataCriacao} · {c.responsavel||"—"} · {itens.length} iten{itens.length!==1?"s":""} · {fors.length} fornecedor{fors.length!==1?"es":""}
                 </div>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
@@ -1038,7 +1041,7 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
               </div>
             </div>
           </Card>
-        ))}
+        );})}
       </div>
     )}
 
