@@ -1092,12 +1092,13 @@ function generatePrintHTML(cotacao) {
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800;900&display=swap');
     *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:#111827;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    @page{size:A4 landscape;margin:12mm 14mm;}
-    @media print{body{font-size:11px;}.no-print{display:none!important;}.page-break{page-break-before:always;}}
+    body{font-family:'DM Sans',Arial,sans-serif;font-size:11px;color:#111827;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    @page{size:A4 landscape;margin:8mm 10mm;}
+    @media print{body{font-size:10px;}.no-print{display:none!important;}}
     table{border-collapse:collapse;width:100%;}
-    .section-label{font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:3px;}
-    .section-value{font-size:12px;font-weight:700;color:#111827;}
+    .section-label{font-size:8px;font-weight:800;color:#9ca3af;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:2px;}
+    .section-value{font-size:11px;font-weight:700;color:#111827;}
+    td{vertical-align:top;}
   ${'</style>'}
   ${'</head>'}<body>
 
@@ -1108,28 +1109,27 @@ function generatePrintHTML(cotacao) {
   </div>
 
   <!-- CABEÇALHO -->
-  <table style="margin-bottom:10px;">
+  <table style="margin-bottom:8px;">
     <tr>
-      <td style="background:#1b2e8a;padding:12px 16px;border-radius:8px 0 0 8px;width:40%;">
-        <div style="font-size:9px;font-weight:800;color:#ffc84a;letter-spacing:1px;margin-bottom:4px;">FORMULÁRIO DE COMPRA</div>
-        <div style="font-size:16px;font-weight:900;color:#fff;line-height:1.25;">${cotacao.titulo}</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:4px;">${cotacao.descricaoAquisicao||""}</div>
+      <td style="background:#1b2e8a;padding:10px 14px;border-radius:8px 0 0 8px;width:38%;">
+        <div style="font-size:8px;font-weight:800;color:#ffc84a;letter-spacing:1px;margin-bottom:3px;">FORMULÁRIO DE COMPRA</div>
+        <div style="font-size:14px;font-weight:900;color:#fff;line-height:1.25;">${cotacao.titulo}</div>
+        ${cotacao.descricaoAquisicao?`<div style="font-size:9px;color:rgba(255,255,255,.5);margin-top:3px;">${cotacao.descricaoAquisicao}</div>`:""}
       </td>
-      <td style="background:#f0f2f8;padding:10px 14px;vertical-align:top;border-radius:0 8px 8px 0;">
+      <td style="background:#f0f2f8;padding:8px 12px;border-radius:0 8px 8px 0;">
         <table style="width:100%;">
           <tr>
-            <td style="padding:2px 12px 2px 0;"><div class="section-label">Nº DO PEDIDO</div><div class="section-value" style="color:#1b2e8a;">${cotacao.numeroPedido}</div></td>
-            <td style="padding:2px 12px 2px 0;"><div class="section-label">DATA</div><div class="section-value">${cotacao.dataCriacao}</div></td>
-            <td style="padding:2px 12px 2px 0;"><div class="section-label">RESPONSÁVEL</div><div class="section-value">${cotacao.responsavel||"—"}</div></td>
-            <td style="padding:2px 12px 2px 0;"><div class="section-label">APROVADOR</div><div class="section-value">${cotacao.aprovador||"—"}</div></td>
-            <td style="padding:2px 12px 2px 0;"><div class="section-label">CENTRO DE CUSTO</div><div class="section-value">${cotacao.centrosCusto||"—"}</div></td>
-            <td style="padding:2px 0;"><div class="section-label">URGENTE / NECESSÁRIO</div><div class="section-value">${cotacao.urgente?"SIM":"NÃO"} / ${cotacao.necessario?"SIM":"NÃO"}</div></td>
+            <td style="padding:2px 10px 2px 0;"><div class="section-label">Nº DO PEDIDO</div><div class="section-value" style="color:#1b2e8a;">${cotacao.numeroPedido}</div></td>
+            <td style="padding:2px 10px 2px 0;"><div class="section-label">DATA</div><div class="section-value">${cotacao.dataCriacao||"—"}</div></td>
+            <td style="padding:2px 10px 2px 0;"><div class="section-label">RESPONSÁVEL</div><div class="section-value">${cotacao.responsavel||"—"}</div></td>
+            <td style="padding:2px 10px 2px 0;"><div class="section-label">APROVADOR</div><div class="section-value">${cotacao.aprovador||"—"}</div></td>
+            <td style="padding:2px 0;"><div class="section-label">CENTRO DE CUSTO</div><div class="section-value">${cotacao.centrosCusto||"—"}</div></td>
           </tr>
-          <tr><td colspan="6" style="padding-top:8px;">
-            <div class="section-label">JUSTIFICATIVA</div>
-            <div style="font-size:11px;color:#4b5563;line-height:1.5;">${cotacao.justificativa||"—"}</div>
-          </td></tr>
-          ${cotacao.classificacao?`<tr><td colspan="6" style="padding-top:6px;"><div class="section-label">CLASSIFICAÇÃO</div><div style="font-size:11px;color:#374151;font-weight:700;">${cotacao.classificacao}</div></td></tr>`:""}
+          <tr>
+            ${cotacao.clienteNome?`<td colspan="2" style="padding-top:6px;"><div class="section-label">CLIENTE / CONDOMÍNIO</div><div class="section-value">${cotacao.clienteNome}</div></td>`:""}
+            ${(cotacao.planoContasLabel&&cotacao.planoContasLabel!=="—")?`<td colspan="3" style="padding-top:6px;"><div class="section-label">PLANO DE CONTAS</div><div class="section-value">${cotacao.planoContasLabel}</div></td>`:""}
+          </tr>
+          ${cotacao.justificativa?`<tr><td colspan="5" style="padding-top:6px;"><div class="section-label">JUSTIFICATIVA</div><div style="font-size:10px;color:#4b5563;line-height:1.4;">${cotacao.justificativa}</div></td></tr>`:""}
         </table>
       </td>
     </tr>
@@ -1245,7 +1245,7 @@ function generatePrintHTML(cotacao) {
 
 // ── Detalhe + Comparativo ────────────────────────────────────────────────────
 // ── Visualização do Pedido de Compra ─────────────────────────────────────────
-function PedidoView({cotacao,onClose}){
+function PedidoView({cotacao,planoLabel,clienteNome,onClose}){
   const mob=useMobile();
   // Guards para campos JSONB que podem vir null do Supabase
   const itens=Array.isArray(cotacao?.itens)?cotacao.itens:[];
@@ -1254,7 +1254,15 @@ function PedidoView({cotacao,onClose}){
   const condicoesFornecedor=Array.isArray(cotacao?.condicoesFornecedor)?cotacao.condicoesFornecedor:[];
   const cot={...cotacao,itens,fornecedores,propostas,condicoesFornecedor};
 
-  const handlePrint=()=>window.print();
+  // Impressão via blob — garante A4 landscape, nome correto e CSS limpo
+  const handlePrint=()=>{
+    const html=generatePrintHTML({...cot,planoContasLabel:planoLabel||"—",clienteNome:clienteNome||""});
+    const blob=new Blob([html],{type:"text/html;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const w=window.open(url,"_blank");
+    if(!w){alert("Permita pop-ups para este site e tente novamente.");URL.revokeObjectURL(url);return;}
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  };
   const getProp=(fid,iid)=>cot.propostas.find(p=>p.fornecedorId===fid&&p.itemId===iid);
   const getCond=(fid,field)=>cot.condicoesFornecedor.find(c=>c.fornecedorId===fid)?.[field]||"—";
   const bestByItem={};
@@ -1310,7 +1318,7 @@ function PedidoView({cotacao,onClose}){
           {/* ── CLASSIFICAÇÃO ── */}
           <div style={{background:"#F0F2F8",padding:"10px 28px",display:"flex",gap:24,flexWrap:"wrap",borderBottom:`1px solid ${C.gray200}`}}>
             {cot.centrosCusto&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>TIPO DE DESPESA </span><span style={{fontSize:12,fontWeight:800,color:cot.centrosCusto==="Ordinária"?C.navy:"#7C3AED"}}>{cot.centrosCusto==="Ordinária"?"📅":"⚡"} {cot.centrosCusto}</span></div>}
-            {cot.planoContas&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>PLANO DE CONTAS </span><span style={{fontSize:12,fontWeight:800,color:C.gray800,fontFamily:"monospace"}}>{cot.planoContas}</span></div>}
+            {cot.planoContas&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>PLANO DE CONTAS </span><span style={{fontSize:12,fontWeight:800,color:C.gray800}}>{planoLabel||"—"}</span></div>}
             {cot.classificacao&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>CLASSIFICAÇÃO </span><span style={{fontSize:12,fontWeight:700,color:C.gray700}}>{cot.classificacao}</span></div>}
             <div style={{marginLeft:"auto",display:"flex",gap:16}}>
               <div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>URGENTE </span><span style={{fontSize:12,fontWeight:800,color:cot.urgente?C.red:C.gray400}}>{cot.urgente?"SIM":"NÃO"}</span></div>
@@ -1531,6 +1539,16 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
   const [tempCond,setTempCond]=useState("");
   const [editMeta,setEditMeta]=useState(false);
   const [metaDraft,setMetaDraft]=useState({});
+  const [planoLabel,setPlanoLabel]=useState("—");
+
+  // Resolve plano de contas UUID → caminho legível (ex: "Manutenção › Elétrica")
+  useEffect(()=>{
+    if(!cot.planoContas){setPlanoLabel("—");return;}
+    loadPlanoContas().then(lista=>{
+      const item=lista.find(i=>i.id===cot.planoContas);
+      setPlanoLabel(item?getPath(lista,item):"—");
+    });
+  },[cot.planoContas]);
 
   const set=(k)=>(v)=>onUpdate({...cot,[k]:v});
   const getProp=(fid,iid)=>cot.propostas.find(p=>p.fornecedorId===fid&&p.itemId===iid);
@@ -1638,7 +1656,7 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
             {cot.centrosCusto==="Ordinária"?"📅":"⚡"} {cot.centrosCusto}
           </span>
         </div>}
-        {cot.planoContas&&<div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>PLANO DE CONTAS</div><PlanoContasLabel id={cot.planoContas}/></div>}
+        {cot.planoContas&&<div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>PLANO DE CONTAS</div><div style={{fontSize:13,fontWeight:700,color:C.gray800}}>{planoLabel}</div></div>}
         <div style={{display:"flex",gap:14}}>
           <div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>URGENTE</div><div style={{fontSize:14,fontWeight:700,color:cot.urgente?C.red:C.gray400}}>{cot.urgente?"SIM":"NÃO"}</div></div>
           <div style={{marginLeft:16}}><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>NECESSÁRIO</div><div style={{fontSize:14,fontWeight:700,color:cot.necessario?C.green:C.gray400}}>{cot.necessario?"SIM":"NÃO"}</div></div>
@@ -1852,7 +1870,7 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
         <Btn onClick={()=>{onUpdate({...cot,...metaDraft});setEditMeta(false);}} variant="navy">Salvar</Btn>
       </div>
     </Modal>}
-    {showPedido&&<PedidoView cotacao={cot} onClose={()=>setShowPedido(false)}/>}
+    {showPedido&&<PedidoView cotacao={cot} planoLabel={planoLabel} clienteNome={cliente?.nomeFantasia||cliente?.razaoSocial||""} onClose={()=>setShowPedido(false)}/>}
   </div>;
 }
 function ModalVincular({fornecedores,vinculados,onClose,onSave,itensCotacao}){
