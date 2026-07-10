@@ -2394,6 +2394,7 @@ export default function App(){
   const [cotacoes,setCotacoes]=useState([]);
   const [fornecedores,setFornecedores]=useState([]);
   const [clientes,setClientes]=useState([]);
+  const [currCotId,setCurrCotId]=useState(null); // separado de view para evitar ambiguidade
   const [view,setView]=useState("dashboard");
   const [showNova,setShowNova]=useState(false);
   const [loaded,setLoaded]=useState(false);
@@ -2473,9 +2474,13 @@ export default function App(){
     await reloadCotacoes();
   },[]);
 
-  const deleteCot=async(id)=>{await cotacoesApi.delete(id);await reloadCotacoes();if(view===id)setView("dashboard");};
+  const deleteCot=async(id)=>{
+    await cotacoesApi.delete(id);
+    await reloadCotacoes();
+    if(currCotId===id){setCurrCotId(null);setView("dashboard");}
+  };
 
-  const currCot=cotacoes.find(c=>c.id===view);
+  const currCot=currCotId?cotacoes.find(c=>c.id===currCotId):null;
 
   if(supplierMode) return(
     <MobileCtx.Provider value={isMobile}><AuthCtx.Provider value={authCtx}>
@@ -2513,7 +2518,7 @@ export default function App(){
   );
 
   const role=ROLES[session.role]||ROLES.comprador;
-  const isInCotacao=!["dashboard","fornecedores","clientes","convites","plano","usuarios"].includes(view)&&!!currCot;
+  const isInCotacao=!!currCot;
   const isSindico=session.role==="sindico";
   const cotacoesVisiveis=cotacoes; // todos os perfis veem todas as cotações; síndico não pode editar
 
@@ -2576,7 +2581,7 @@ export default function App(){
 
         {/* Conteúdo */}
         <div style={{maxWidth:1040,margin:"0 auto",padding:isMobile?"14px 12px 8px":"28px 18px"}}>
-          {view==="dashboard"&&<Dashboard cotacoes={cotacoesVisiveis} fornecedores={fornecedores} onCreate={()=>setShowNova(true)} onOpen={setView} onDelete={deleteCot}/>}
+          {view==="dashboard"&&!currCot&&<Dashboard cotacoes={cotacoesVisiveis} fornecedores={fornecedores} onCreate={()=>setShowNova(true)} onOpen={(id)=>{setCurrCotId(id);}} onDelete={deleteCot}/>}
           {view==="fornecedores"&&can(session,"manage_fornecedores")&&<TelaFornecedores fornecedores={fornecedores}
             onAdd={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();}}
             onEdit={async f=>{const {id,criadoEm,...rest}=f;await fornecedoresApi.update(id,rest);await reloadFornecedores();}}
@@ -2588,7 +2593,7 @@ export default function App(){
           {view==="convites"&&can(session,"invite")&&<TelaConvites onApprove={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();setPendingCount(c=>Math.max(0,c-1));}}/>}
           {view==="plano"&&can(session,"all")&&<TelaPlanoContas onBack={()=>setView("dashboard")}/>}
           {view==="usuarios"&&can(session,"all")&&<TelaUsuarios/>}
-          {currCot&&<DetalheCotacao cotacao={currCot} allFornecedores={fornecedores} clientes={clientes} onUpdate={updCot} onDelete={deleteCot} onBack={()=>setView("dashboard")} onAddFornecedor={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();}} readOnly={isSindico}/>}
+          {currCot&&<DetalheCotacao cotacao={currCot} allFornecedores={fornecedores} clientes={clientes} onUpdate={updCot} onDelete={deleteCot} onBack={()=>setCurrCotId(null)} onAddFornecedor={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();}} readOnly={isSindico}/>}
         </div>
 
         {/* Bottom nav (mobile) */}
