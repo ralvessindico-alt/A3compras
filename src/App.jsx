@@ -2411,7 +2411,7 @@ export default function App(){
   const [cotacoes,setCotacoes]=useState([]);
   const [fornecedores,setFornecedores]=useState([]);
   const [clientes,setClientes]=useState([]);
-  const [currCotId,setCurrCotId]=useState(null); // separado de view para evitar ambiguidade
+  const [currCot,setCurrCot]=useState(null); // objeto completo da cotação aberta
   const [view,setView]=useState("dashboard");
   const [showNova,setShowNova]=useState(false);
   const [loaded,setLoaded]=useState(false);
@@ -2477,27 +2477,29 @@ export default function App(){
   const createCot=async(c)=>{
     const novo=await cotacoesApi.create(c);
     await reloadCotacoes();
-    setCurrCotId(novo.id);setShowNova(false);
+    setCurrCot(novo);setShowNova(false);
   };
 
   const updCot=useCallback(async(u)=>{
-    // Aprovação/rejeição do síndico passa pela RPC restrita; demais campos via UPDATE normal.
     if(u._aprovar){
       await cotacoesApi.aprovar(u.id,u.status);
     }else{
       const {id,createdAt,updatedAt,criadoPor,_aprovar,...fields}=u;
       await cotacoesApi.update(u.id,fields);
     }
-    await reloadCotacoes();
+    const fresh=await cotacoesApi.list();
+    setCotacoes(fresh);
+    // Atualiza a cotação aberta com os dados frescos do banco
+    const atualizada=fresh.find(c=>c.id===u.id);
+    if(atualizada) setCurrCot(atualizada);
   },[]);
 
   const deleteCot=async(id)=>{
     await cotacoesApi.delete(id);
     await reloadCotacoes();
-    if(currCotId===id){setCurrCotId(null);setView("dashboard");}
+    if(currCot?.id===id){setCurrCot(null);setView("dashboard");}
   };
 
-  const currCot=currCotId?cotacoes.find(c=>c.id===currCotId):null;
 
   if(supplierMode) return(
     <MobileCtx.Provider value={isMobile}><AuthCtx.Provider value={authCtx}>
@@ -2571,14 +2573,14 @@ export default function App(){
         {/* Topbar */}
         <div style={{background:C.white,borderBottom:`2px solid ${C.amber}`,padding:`0 ${isMobile?14:20}px`,height:isMobile?52:56,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 10px rgba(0,0,0,.06)"}}>
           <div style={{display:"flex",alignItems:"center",gap:isMobile?8:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>{setCurrCotId(null);setView("dashboard");}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>{setCurrCot(null);setView("dashboard");}}>
               <div style={{width:32,height:32,background:`linear-gradient(135deg,${C.amber},${C.amberDark})`,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:C.navy,fontSize:13,flexShrink:0}}>A3</div>
               {!isMobile&&<div><div style={{fontWeight:900,fontSize:14,color:C.navy,lineHeight:1.1}}>A3 Cotações</div><div style={{fontSize:10,color:C.gray400,fontWeight:600}}>Gestão de Compras</div></div>}
               {isMobile&&<div style={{fontWeight:900,fontSize:15,color:C.navy}}>{isInCotacao?currCot?.titulo?.slice(0,20)+(currCot?.titulo?.length>20?"…":""):NAV.find(n=>n.id===view)?.label||"A3"}</div>}
             </div>
             {!isMobile&&<nav style={{display:"flex",gap:2}}>
               {NAV.map(n=>{const active=view===n.id||(n.id==="dashboard"&&isInCotacao);return(
-                <button key={n.id} onClick={()=>{setCurrCotId(null);setView(n.id);}} style={{background:active?C.navy:"transparent",color:active?C.white:C.gray600,border:"none",borderRadius:7,padding:"5px 12px",fontWeight:700,fontSize:12,cursor:"pointer",transition:"all .15s",display:"flex",alignItems:"center",gap:5}}>
+                <button key={n.id} onClick={()=>{setCurrCot(null);setView(n.id);}} style={{background:active?C.navy:"transparent",color:active?C.white:C.gray600,border:"none",borderRadius:7,padding:"5px 12px",fontWeight:700,fontSize:12,cursor:"pointer",transition:"all .15s",display:"flex",alignItems:"center",gap:5}}>
                   {n.icon} {n.label}
                   {n.badge>0&&<span style={{background:C.red,color:C.white,borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{n.badge}</span>}
                 </button>
@@ -2598,7 +2600,7 @@ export default function App(){
 
         {/* Conteúdo */}
         <div style={{maxWidth:1040,margin:"0 auto",padding:isMobile?"14px 12px 8px":"28px 18px"}}>
-          {view==="dashboard"&&!currCot&&<Dashboard cotacoes={cotacoesVisiveis} fornecedores={fornecedores} onCreate={()=>setShowNova(true)} onOpen={(id)=>{setCurrCotId(id);}} onDelete={deleteCot}/>}
+          {view==="dashboard"&&!currCot&&<Dashboard cotacoes={cotacoesVisiveis} fornecedores={fornecedores} onCreate={()=>setShowNova(true)} onOpen={(id)=>{const c=cotacoesVisiveis.find(x=>x.id===id);if(c)setCurrCot(c);}} onDelete={deleteCot}/>}
           {view==="fornecedores"&&can(session,"manage_fornecedores")&&<TelaFornecedores fornecedores={fornecedores}
             onAdd={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();}}
             onEdit={async f=>{const {id,criadoEm,...rest}=f;await fornecedoresApi.update(id,rest);await reloadFornecedores();}}
@@ -2610,13 +2612,13 @@ export default function App(){
           {view==="convites"&&can(session,"invite")&&<TelaConvites onApprove={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();setPendingCount(c=>Math.max(0,c-1));}}/>}
           {view==="plano"&&can(session,"all")&&<TelaPlanoContas onBack={()=>setView("dashboard")}/>}
           {view==="usuarios"&&can(session,"all")&&<TelaUsuarios/>}
-          {currCot&&<DetalheCotacao cotacao={currCot} allFornecedores={fornecedores} clientes={clientes} onUpdate={updCot} onDelete={deleteCot} onBack={()=>setCurrCotId(null)} onAddFornecedor={async f=>{const criado=await fornecedoresApi.create(f);await reloadFornecedores();return criado;}} readOnly={isSindico}/>}
+          {currCot&&<DetalheCotacao cotacao={currCot} allFornecedores={fornecedores} clientes={clientes} onUpdate={updCot} onDelete={deleteCot} onBack={()=>setCurrCot(null)} onAddFornecedor={async f=>{const criado=await fornecedoresApi.create(f);await reloadFornecedores();return criado;}} readOnly={isSindico}/>}
         </div>
 
         {/* Bottom nav (mobile) */}
         {isMobile&&<div style={{position:"fixed",bottom:0,left:0,right:0,background:C.white,borderTop:`1px solid ${C.gray200}`,display:"flex",zIndex:200,boxShadow:"0 -2px 12px rgba(0,0,0,.08)",paddingBottom:"env(safe-area-inset-bottom)"}}>
           {NAV.map(n=>{const active=view===n.id||(n.id==="dashboard"&&isInCotacao);return(
-            <button key={n.id} onClick={()=>{setCurrCotId(null);setView(n.id);}} style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"10px 4px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,position:"relative"}}>
+            <button key={n.id} onClick={()=>{setCurrCot(null);setView(n.id);}} style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"10px 4px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,position:"relative"}}>
               <span style={{fontSize:20,lineHeight:1}}>{n.icon}</span>
               <span style={{fontSize:10,fontWeight:active?800:600,color:active?C.navy:C.gray400}}>{n.label}</span>
               {n.badge>0&&<span style={{position:"absolute",top:6,right:"calc(50% - 14px)",background:C.red,color:C.white,borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{n.badge}</span>}
