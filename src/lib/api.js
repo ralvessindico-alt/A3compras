@@ -323,12 +323,11 @@ export const userClientesApi = {
 };
 export const usersApi = {
   create: async (_session, { nome, email, senha, role, cargo }) => {
-    // Busca a sessão atual diretamente — mais confiável que receber como parâmetro
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) throw new Error("Sessão expirada. Faça login novamente.");
 
     const res = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/quick-task`,
       {
         method: "POST",
         headers: {
