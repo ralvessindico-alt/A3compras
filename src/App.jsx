@@ -425,7 +425,7 @@ function FormCliente({initial,onSave,onCancel}){
   </div>;
 }
 
-function TelaClientes({clientes,onAdd,onEdit,onDelete}){
+function TelaClientes({clientes,onAdd,onEdit,onDelete,onOpenPlano}){
   const [search,setSearch]=useState("");
   const [showForm,setShowForm]=useState(false);
   const [editing,setEditing]=useState(null);
@@ -462,6 +462,7 @@ function TelaClientes({clientes,onAdd,onEdit,onDelete}){
             </div>
           </div>
           <div style={{display:"flex",gap:6,flexShrink:0}}>
+            <Btn onClick={()=>onOpenPlano(c.id)} variant="primary" size="sm">📒 Plano</Btn>
             <Btn onClick={()=>{setEditing(c);setShowForm(true);}} variant="ghost" size="sm">Editar</Btn>
             <Btn onClick={()=>onDelete(c.id)} variant="danger" size="sm">Excluir</Btn>
           </div>
@@ -607,7 +608,7 @@ function ClassificacaoFields({centrosCusto,onCentrosCusto,classificacao,onClassi
 }
 
 // ── Tela Plano de Contas (admin) ──────────────────────────────────────────────
-function TelaPlanoContas({onBack}){
+function TelaPlanoContas({onBack,clienteId,clientes}){
   const mob=useMobile();
   const [lista,setLista]=useState([]);
   const [expandidos,setExpandidos]=useState({});
@@ -617,10 +618,10 @@ function TelaPlanoContas({onBack}){
   const [erro,setErro]=useState("");
 
   const reload=async()=>{
-    const d=await loadPlanoContas();setLista(d);
+    const d=await planoContasApi.list(clienteId);setLista(d);
     const exp={};d.filter(i=>i.nivel===1).forEach(i=>{exp[i.id]=true;});setExpandidos(exp);
   };
-  useEffect(()=>{reload();},[]);
+  useEffect(()=>{reload();},[clienteId]);
 
   const toggleExpand=(id)=>setExpandidos(p=>({...p,[id]:!p[id]}));
 
@@ -636,7 +637,7 @@ function TelaPlanoContas({onBack}){
   const handleSave=async()=>{
     if(!fDescricao.trim()){setErro("Descrição obrigatória.");return;}
     if(modal.modo==="add"){
-      await planoContasApi.create({codigo:fCodigo.trim(),descricao:fDescricao.trim(),nivel:modal.nivel,parentId:modal.parentId||null});
+      await planoContasApi.create({codigo:fCodigo.trim(),descricao:fDescricao.trim(),nivel:modal.nivel,parentId:modal.parentId||null,cliente_id:clienteId});
       if(modal.parentId) setExpandidos(p=>({...p,[modal.parentId]:true}));
     } else {
       await planoContasApi.update(modal.item.id,{codigo:fCodigo.trim(),descricao:fDescricao.trim()});
@@ -680,8 +681,11 @@ function TelaPlanoContas({onBack}){
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",color:C.navy,fontWeight:700,fontSize:13,padding:0,flexShrink:0}}>←</button>
         <div>
-          <h1 style={{margin:0,fontSize:22,fontWeight:900,color:C.navy}}>Plano de Contas</h1>
-          <div style={{fontSize:13,color:C.gray400,marginTop:2}}>{contas.length} conta{contas.length!==1?"s":""} · {totalItens} ite{totalItens!==1?"ns":"m"} no total</div>
+          <h1 style={{margin:0,fontSize:22,fontWeight:900,color:C.navy}}>Plano de Contas {clienteId ? "do Condomínio" : "(Template Global)"}</h1>
+          <div style={{fontSize:13,color:C.gray400,marginTop:2}}>
+            {clienteId && clientes ? clientes.find(c => c.id === clienteId)?.nomeFantasia || "Carregando..." : "Template para todos os clientes"}
+            {" "} · {contas.length} conta{contas.length!==1?"s":""} · {totalItens} ite{totalItens!==1?"ns":"m"} no total
+          </div>
         </div>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -2715,6 +2719,7 @@ export default function App(){
   const [supplierMode,setSupplierMode]=useState(false);
   const [approvalToken,setApprovalToken]=useState(null);
   const [pendingCount,setPendingCount]=useState(0);
+  const [currClientePlanoId,setCurrClientePlanoId]=useState(null); // ← NOVO: UUID do cliente ou null (global)
 
   const authCtx={user:session,logout:()=>auth.signOut()};
 
@@ -2772,6 +2777,7 @@ export default function App(){
   const reloadCotacoes=async()=>setCotacoes(await cotacoesApi.list());
   const reloadFornecedores=async()=>setFornecedores(await fornecedoresApi.list());
   const reloadClientes=async()=>setClientes(await clientesApi.list());
+  const abrirPlanoCliente=(clienteId)=>{setCurrClientePlanoId(clienteId);setView('plano');}; // ← NOVO
 
   const createCot=async(c)=>{
     const novo=await cotacoesApi.create(c);
@@ -2998,9 +3004,10 @@ export default function App(){
             {view==="clientes"&&can(session,"manage_fornecedores")&&<TelaClientes clientes={clientes}
               onAdd={async c=>{await clientesApi.create(c);await reloadClientes();}}
               onEdit={async c=>{const {id,criadoEm,...rest}=c;await clientesApi.update(id,rest);await reloadClientes();}}
-              onDelete={async id=>{await clientesApi.delete(id);await reloadClientes();}}/>}
+              onDelete={async id=>{await clientesApi.delete(id);await reloadClientes();}}
+              onOpenPlano={abrirPlanoCliente}/>}
             {view==="convites"&&can(session,"invite")&&<TelaConvites onApprove={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();setPendingCount(c=>Math.max(0,c-1));}}/>}
-            {view==="plano"&&can(session,"all")&&<TelaPlanoContas onBack={()=>setView("dashboard")}/>}
+            {view==="plano"&&can(session,"all")&&<TelaPlanoContas clienteId={currClientePlanoId} clientes={clientes} onBack={()=>{setView("dashboard");setCurrClientePlanoId(null);}}/>}
             {view==="usuarios"&&can(session,"all")&&<TelaUsuarios/>}
             {currCot&&<DetalheCotacao cotacao={currCot} allFornecedores={fornecedores} clientes={clientes} onUpdate={updCot} onDelete={deleteCot} onBack={()=>setCurrCot(null)} onAddFornecedor={async f=>{const criado=await fornecedoresApi.create(f);await reloadFornecedores();return criado;}} readOnly={isSindico}/>}
           </div>
