@@ -134,6 +134,8 @@ export const clientesApi = crudFactory("clientes");
 // API: Plano de Contas com suporte a cliente_id
 // ============================================================================
 
+import { supabase } from './supabase';
+
 export const planoContasApi = {
   /**
    * Lista plano de contas (global se clienteId=null, ou de um cliente específico)
@@ -152,7 +154,7 @@ export const planoContasApi = {
 
       const { data, error } = await query.order('nivel', { ascending: true }).order('codigo', { ascending: true });
       if (error) throw error;
-      return data || [];
+      return listFromDb(data || []);
     } catch (err) {
       console.error('❌ planoContasApi.list:', err.message);
       throw err;
@@ -176,7 +178,7 @@ export const planoContasApi = {
         codigo: data.codigo || null,
         descricao: data.descricao || '',
         nivel: data.nivel || 1,
-        parentId: data.parentId || null,
+        parent_id: data.parentId || null,
         cliente_id: data.cliente_id || null, // null = global, UUID = cliente específico
       };
 
@@ -187,7 +189,7 @@ export const planoContasApi = {
         .single();
 
       if (error) throw error;
-      return res;
+      return fromDb(res);
     } catch (err) {
       console.error('❌ planoContasApi.create:', err.message);
       throw err;
@@ -210,7 +212,7 @@ export const planoContasApi = {
         .single();
 
       if (error) throw error;
-      return res;
+      return fromDb(res);
     } catch (err) {
       console.error('❌ planoContasApi.update:', err.message);
       throw err;
