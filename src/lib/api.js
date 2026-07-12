@@ -130,29 +130,193 @@ export const fornecedoresApi = {
 
 export const clientesApi = crudFactory("clientes");
 
-// ── Plano de Contas ──────────────────────────────────────────────────────────
+// ============================================================================
+// API: Plano de Contas com suporte a cliente_id
+// ============================================================================
+
+import { supabase } from './supabase';
+
 export const planoContasApi = {
-  list: async () => {
-    const { data, error } = await supabase.from("plano_contas").select("*").order("codigo");
-    if (error) throw error;
-    return listFromDb(data);
+  /**
+   * Lista plano de contas (global se clienteId=null, ou de um cliente específico)
+   * @param {string|null} clienteId - UUID do cliente ou null para plano global
+   */
+  list: async (clienteId = null) => {
+    try {
+      let query = supabase.from('plano_contas').select('*');
+
+      if (clienteId) {
+        query = query.eq('cliente_id', clienteId);
+      } else {
+        // Plano global (NULL)
+        query = query.is('cliente_id', null);
+      }
+
+      const { data, error } = await query.order('nivel', { ascending: true }).order('codigo', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.error('❌ planoContasApi.list:', err.message);
+      throw err;
+    }
   },
-  create: async (obj) => {
-    const { data, error } = await supabase.from("plano_contas").insert(toDb(obj)).select().single();
-    if (error) throw error;
-    return fromDb(data);
+
+  /**
+   * Alias para list() - compatibilidade com código existente
+   */
+  listByCliente: async (clienteId = null) => {
+    return planoContasApi.list(clienteId);
   },
-  update: async (id, fields) => {
-    const { error } = await supabase.from("plano_contas").update(toDb(fields)).eq("id", id);
-    if (error) throw error;
+
+  /**
+   * Cria nova conta/subconta/variação
+   * @param {object} data - { codigo, descricao, nivel, parentId, cliente_id }
+   */
+  create: async (data) => {
+    try {
+      const payload = {
+        codigo: data.codigo || null,
+        descricao: data.descricao || '',
+        nivel: data.nivel || 1,
+        parentId: data.parentId || null,
+        cliente_id: data.cliente_id || null, // null = global, UUID = cliente específico
+      };
+
+      const { data: res, error } = await supabase
+        .from('plano_contas')
+        .insert([payload])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return res;
+    } catch (err) {
+      console.error('❌ planoContasApi.create:', err.message);
+      throw err;
+    }
   },
+
+  /**
+   * Atualiza conta existente
+   */
+  update: async (id, data) => {
+    try {
+      const { data: res, error } = await supabase
+        .from('plano_contas')
+        .update({
+          codigo: data.codigo !== undefined ? data.codigo : undefined,
+          descricao: data.descricao !== undefined ? data.descricao : undefined,
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return res;
+    } catch (err) {
+      console.error('❌ planoContasApi.update:', err.message);
+      throw err;
+    }
+  },
+
+  /**
+   * Deleta conta (CASCADE remove filhos automaticamente)
+   */
   delete: async (id) => {
-    const { error } = await supabase.from("plano_contas").delete().eq("id", id);
-    if (error) throw error;
+    try {
+      const { error } = await supabase
+        .from('plano_contas')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('❌ planoContasApi.delete:', err.message);
+      throw err;
+    }
   },
+
+  /**
+   * Reseta TUDO (apenas admin, apenas para debug/reset)
+   */
   resetAll: async () => {
-    const { error } = await supabase.from("plano_contas").delete().not("id", "is", null);
-    if (error) throw error;
+    try {
+      const { error } = await supabase
+        .from('plano_contas')
+        .delete()
+        .gte('id', '00000000-0000-0000-0000-000000000000'); // deleta tudo
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('❌ planoContasApi.resetAll:', err.message);
+      throw err;
+    }
+  },
+
+  /**
+   * Copia plano de um cliente para outro (usado ao criar cliente novo)
+   * @param {string} fromClienteId - cliente com plano template
+   * @param {string} toClienteId - cliente que recebe a cópia
+   */
+  duplicarPlano: async (fromClienteId, toClienteId) => {
+    try {
+      // Carrega plano de origem
+      const original = await planoContasApi.list(fromClienteId);
+      if (!original.length) return [];
+
+      // Mapeia IDs antigos → novos (para manter hierarquia)
+      const mapIdAntigo = {};
+      const cópias = [];
+
+      // Primeiro: cria contas (nivel 1)
+      for (const conta of original.filter(c => c.nivel === 1)) {
+        const nova = await planoContasApi.create({
+          codigo: conta.codigo,
+          descricao: conta.descricao,
+          nivel: conta.nivel,
+          parentId: null,
+          cliente_id: toClienteId,
+        });
+        mapIdAntigo[conta.id] = nova.id;
+        cópias.push(nova);
+      }
+
+      // Segundo: cria subcontas (nivel 2)
+      for (const sub of original.filter(c => c.nivel === 2)) {
+        const novaPai = mapIdAntigo[sub.parentId];
+        if (!novaPai) continue;
+
+        const nova = await planoContasApi.create({
+          codigo: sub.codigo,
+          descricao: sub.descricao,
+          nivel: sub.nivel,
+          parentId: novaPai,
+          cliente_id: toClienteId,
+        });
+        mapIdAntigo[sub.id] = nova.id;
+        cópias.push(nova);
+      }
+
+      // Terceiro: cria variações (nivel 3)
+      for (const var3 of original.filter(c => c.nivel === 3)) {
+        const novaPai = mapIdAntigo[var3.parentId];
+        if (!novaPai) continue;
+
+        const nova = await planoContasApi.create({
+          codigo: var3.codigo,
+          descricao: var3.descricao,
+          nivel: var3.nivel,
+          parentId: novaPai,
+          cliente_id: toClienteId,
+        });
+        cópias.push(nova);
+      }
+
+      return cópias;
+    } catch (err) {
+      console.error('❌ planoContasApi.duplicarPlano:', err.message);
+      throw err;
+    }
   },
 };
 
