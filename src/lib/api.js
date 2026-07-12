@@ -330,6 +330,7 @@ export const usersApi = {
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session.access_token}`,
+          "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY, // obrigatório — gateway Supabase rejeita sem isso
         },
         body: JSON.stringify({ nome, email, senha, role, cargo }),
       }
