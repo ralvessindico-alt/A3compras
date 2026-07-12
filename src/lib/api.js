@@ -134,8 +134,6 @@ export const clientesApi = crudFactory("clientes");
 // API: Plano de Contas com suporte a cliente_id
 // ============================================================================
 
-import { supabase } from './supabase';
-
 export const planoContasApi = {
   /**
    * Lista plano de contas (global se clienteId=null, ou de um cliente específico)
