@@ -322,7 +322,11 @@ export const userClientesApi = {
   },
 };
 export const usersApi = {
-  create: async (session, { nome, email, senha, role, cargo }) => {
+  create: async (_session, { nome, email, senha, role, cargo }) => {
+    // Busca a sessão atual diretamente — mais confiável que receber como parâmetro
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Sessão expirada. Faça login novamente.");
+
     const res = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
       {
@@ -330,7 +334,7 @@ export const usersApi = {
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session.access_token}`,
-          "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY, // obrigatório — gateway Supabase rejeita sem isso
+          "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({ nome, email, senha, role, cargo }),
       }
