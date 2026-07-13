@@ -425,51 +425,52 @@ function FormCliente({initial,onSave,onCancel}){
   </div>;
 }
 
-function TelaClientes({clientes,onAdd,onEdit,onDelete,onOpenPlano}){   const mob=useMobile();   const [search,setSearch]=useState("");   const [showForm,setShowForm]=useState(false);   const [editing,setEditing]=useState(null);   const filtered=clientes.filter(c=>[c.razaoSocial,c.nomeFantasia,c.cnpj,c.cpf,c.categoria,c.contatoNome,c.cidade].some(v=>v?.toLowerCase().includes(search.toLowerCase())));      return <div style={{padding:mob?"12px":"0"}}>     {/* Header */}     <div style={{display:"flex",flexDirection:mob?"column":"row",justifyContent:"space-between",alignItems:mob?"flex-start":"center",marginBottom:20,gap:12}}>       <div>         <h1 style={{margin:0,fontSize:mob?20:22,fontWeight:900,color:C.navy}}>Clientes</h1>         <div style={{fontSize:mob?12:13,color:C.gray400,marginTop:2}}>{clientes.length} cadastrado{clientes.length!==1?"s":""}</div>       </div>       <Btn onClick={()=>{setEditing(null);setShowForm(true);}} variant="primary" size={mob?"sm":"md"}>＋ Novo Cliente</Btn>     </div>          {/* Buscador */}     <div style={{position:"relative",marginBottom:14}}>       <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:C.gray400}}>🔍</span>       <input          value={search}          onChange={e=>setSearch(e.target.value)}          placeholder={mob?"Buscar...":"Buscar por nome, CNPJ, categoria, cidade..."}          style={{           width:"100%",           border:`1.5px solid ${C.gray200}`,           borderRadius:9,           padding:mob?"8px 10px 8px 32px":"9px 12px 9px 36px",           fontSize:mob?13:14,           fontFamily:"inherit",           outline:"none",           boxSizing:"border-box"         }}          onFocus={e=>e.target.style.borderColor=C.amber}          onBlur={e=>e.target.style.borderColor=C.gray200}       />     </div>          {/* Lista de Clientes */}     {filtered.length===0?       <Card style={{textAlign:"center",padding:mob?32:44}}>         <div style={{fontSize:mob?32:40,marginBottom:10}}>🏢</div>         <div style={{fontSize:mob?14:15,fontWeight:700,color:C.gray600}}>{search?"Nenhum resultado":"Nenhum cliente cadastrado"}</div>         {!search&&<Btn onClick={()=>setShowForm(true)} variant="navy" size="lg" style={{marginTop:18}}>＋ Cadastrar Cliente</Btn>}       </Card>     :       <div style={{display:"flex",flexDirection:"column",gap:mob?8:10}}>         {filtered.map(c=>           <Card key={c.id} style={{padding:mob?"12px 14px":"14px 18px"}}>             {/* Layout: Desktop = horizontal, Mobile = vertical */}             <div style={{display:"flex",flexDirection:mob?"column":"row",alignItems:mob?"flex-start":"flex-start",justifyContent:"space-between",gap:mob?10:10}}>                              {/* Info do Cliente */}               <div style={{flex:1,minWidth:0}}>                 {/* Nome + Categoria */}                 <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>                   <span style={{fontWeight:900,fontSize:mob?14:15,color:C.navy,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>                     {c.razaoSocial}                   </span>                   {c.nomeFantasia&&c.nomeFantasia!==c.razaoSocial&&                     <span style={{fontSize:mob?11:12,color:C.gray400,fontStyle:"italic"}}>                       ({c.nomeFantasia})                     </span>                   }                   {c.categoria&&                     <span style={{background:"#FEF9C3",color:"#92400E",fontSize:mob?10:11,fontWeight:700,padding:"1px 6px",borderRadius:20,border:"1px solid #FDE68A",flexShrink:0}}>                       {c.categoria}                     </span>                   }                 </div>                                  {/* Dados de Contato */}                 <div style={{display:"flex",flexDirection:mob?"column":"row",flexWrap:"wrap",gap:mob?"4px 0":"4px 16px",marginTop:mob?6:5}}>                   {(c.cnpj||c.cpf)&&<span style={{fontSize:mob?11:12,color:C.gray600}}>📄 {c.cnpj||c.cpf}</span>}                   {c.email&&<span style={{fontSize:mob?11:12,color:C.gray600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>✉️ {c.email}</span>}                   {(c.celular||c.whatsapp||c.telefone)&&<span style={{fontSize:mob?11:12,color:C.gray600}}>📞 {c.celular||c.whatsapp||c.telefone}</span>}                   {c.contatoNome&&<span style={{fontSize:mob?11:12,color:C.gray600}}>👤 {c.contatoNome}{c.contatoCargo?` · ${c.contatoCargo}`:""}</span>}                   {c.cidade&&<span style={{fontSize:mob?11:12,color:C.gray600}}>📍 {c.cidade}{c.estado?`/${c.estado}`:""}</span>}                 </div>               </div>                              {/* Botões */}               <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr 1fr":"auto auto auto",gap:mob?6:6,flexShrink:0,width:mob?"100%":"auto"}}>                 <Btn onClick={()=>onOpenPlano(c.id)} variant="primary" size={mob?"xs":"sm"}>📒</Btn>                 <Btn onClick={()=>{setEditing(c);setShowForm(true);}} variant="ghost" size={mob?"xs":"sm"}>✏️</Btn>                 <Btn                    onClick={async ()=>{                     if(!window.confirm(`Excluir "${c.nomeFantasia||c.razaoSocial}"? Ação não pode ser desfeita.`)){                       return;                     }                     try{                       await onDelete(c.id);                       alert("✅ Cliente excluído!");                     }catch(e){                       alert("❌ Erro ao excluir: "+(e.message||JSON.stringify(e)));                       console.error("Erro delete:",e);                     }                   }}                    variant="danger"                    size={mob?"xs":"sm"}                 >                   🗑️                 </Btn>               </div>             </div>           </Card>         )}       </div>     }          {/* Modal Cadastro/Edição */}     {showForm&&       <Modal title={editing?"Editar Cliente":"Cadastrar Cliente"} onClose={()=>setShowForm(false)} width={mob?"100%":800}>         <FormCliente            initial={editing}            onSave={async(cli)=>{             try{               editing?await onEdit(cli):await onAdd(cli);               setShowForm(false);               setEditing(null);             }             catch(e){               alert("Erro ao salvar: "+(e.message||JSON.stringify(e)));             }           }}            onCancel={()=>{setShowForm(false);setEditing(null);}}         />       </Modal>     }   </div>; }
+function TelaClientes({clientes,onAdd,onEdit,onDelete,onOpenPlano}){
+  const mob=useMobile();
   const [search,setSearch]=useState("");
   const [showForm,setShowForm]=useState(false);
   const [editing,setEditing]=useState(null);
   const filtered=clientes.filter(c=>[c.razaoSocial,c.nomeFantasia,c.cnpj,c.cpf,c.categoria,c.contatoNome,c.cidade].some(v=>v?.toLowerCase().includes(search.toLowerCase())));
-  return <div>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-      <div><h1 style={{margin:0,fontSize:22,fontWeight:900,color:C.navy}}>Clientes</h1><div style={{fontSize:13,color:C.gray400,marginTop:2}}>{clientes.length} cadastrado{clientes.length!==1?"s":""}</div></div>
-      <Btn onClick={()=>{setEditing(null);setShowForm(true);}} variant="primary">＋ Novo Cliente</Btn>
+  return <div style={{padding:mob?"12px":"0"}}>
+    <div style={{display:"flex",flexDirection:mob?"column":"row",justifyContent:"space-between",alignItems:mob?"flex-start":"center",marginBottom:20,gap:mob?10:0}}>
+      <div><h1 style={{margin:0,fontSize:mob?20:22,fontWeight:900,color:C.navy}}>Clientes</h1><div style={{fontSize:mob?12:13,color:C.gray400,marginTop:2}}>{clientes.length} cadastrado{clientes.length!==1?"s":""}</div></div>
+      <Btn onClick={()=>{setEditing(null);setShowForm(true);}} variant="primary" size={mob?"sm":"md"}>＋ Novo Cliente</Btn>
     </div>
     <div style={{position:"relative",marginBottom:14}}>
       <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:C.gray400}}>🔍</span>
-      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por nome, CNPJ, categoria, cidade..." style={{width:"100%",border:`1.5px solid ${C.gray200}`,borderRadius:9,padding:"9px 12px 9px 36px",fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=C.amber} onBlur={e=>e.target.style.borderColor=C.gray200}/>
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={mob?"Buscar...":"Buscar por nome, CNPJ, categoria, cidade..."} style={{width:"100%",border:`1.5px solid ${C.gray200}`,borderRadius:9,padding:mob?"8px 10px 8px 32px":"9px 12px 9px 36px",fontSize:mob?13:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=C.amber} onBlur={e=>e.target.style.borderColor=C.gray200}/>
     </div>
-    {filtered.length===0?<Card style={{textAlign:"center",padding:44}}>
-      <div style={{fontSize:40,marginBottom:10}}>🏢</div>
-      <div style={{fontSize:15,fontWeight:700,color:C.gray600}}>{search?"Nenhum resultado":"Nenhum cliente cadastrado"}</div>
+    {filtered.length===0?<Card style={{textAlign:"center",padding:mob?32:44}}>
+      <div style={{fontSize:mob?32:40,marginBottom:10}}>🏢</div>
+      <div style={{fontSize:mob?14:15,fontWeight:700,color:C.gray600}}>{search?"Nenhum resultado":"Nenhum cliente cadastrado"}</div>
       {!search&&<Btn onClick={()=>setShowForm(true)} variant="navy" size="lg" style={{marginTop:18}}>＋ Cadastrar Cliente</Btn>}
     </Card>:
-    <div style={{display:"flex",flexDirection:"column",gap:10}}>
-      {filtered.map(c=><Card key={c.id} style={{padding:"14px 18px"}}>
-        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10}}>
-          <div style={{flex:1}}>
+    <div style={{display:"flex",flexDirection:"column",gap:mob?8:10}}>
+      {filtered.map(c=><Card key={c.id} style={{padding:mob?"12px 14px":"14px 18px"}}>
+        <div style={{display:"flex",flexDirection:mob?"column":"row",alignItems:"flex-start",justifyContent:"space-between",gap:mob?10:10}}>
+          <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-              <span style={{fontWeight:900,fontSize:15,color:C.navy}}>{c.razaoSocial}</span>
-              {c.nomeFantasia&&c.nomeFantasia!==c.razaoSocial&&<span style={{fontSize:12,color:C.gray400,fontStyle:"italic"}}>({c.nomeFantasia})</span>}
-              {c.categoria&&<span style={{background:"#FEF9C3",color:"#92400E",fontSize:11,fontWeight:700,padding:"1px 8px",borderRadius:20,border:"1px solid #FDE68A"}}>{c.categoria}</span>}
+              <span style={{fontWeight:900,fontSize:mob?14:15,color:C.navy,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.razaoSocial}</span>
+              {c.nomeFantasia&&c.nomeFantasia!==c.razaoSocial&&<span style={{fontSize:mob?11:12,color:C.gray400,fontStyle:"italic"}}>({c.nomeFantasia})</span>}
+              {c.categoria&&<span style={{background:"#FEF9C3",color:"#92400E",fontSize:mob?10:11,fontWeight:700,padding:"1px 6px",borderRadius:20,border:"1px solid #FDE68A"}}>{c.categoria}</span>}
             </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:"4px 16px",marginTop:5}}>
-              {(c.cnpj||c.cpf)&&<span style={{fontSize:12,color:C.gray600}}>📄 {c.cnpj||c.cpf}</span>}
-              {c.email&&<span style={{fontSize:12,color:C.gray600}}>✉️ {c.email}</span>}
-              {(c.celular||c.whatsapp||c.telefone)&&<span style={{fontSize:12,color:C.gray600}}>📞 {c.celular||c.whatsapp||c.telefone}</span>}
-              {c.contatoNome&&<span style={{fontSize:12,color:C.gray600}}>👤 {c.contatoNome}{c.contatoCargo?` · ${c.contatoCargo}`:""}</span>}
-              {c.cidade&&<span style={{fontSize:12,color:C.gray600}}>📍 {c.cidade}{c.estado?`/${c.estado}`:""}</span>}
+            <div style={{display:"flex",flexDirection:mob?"column":"row",flexWrap:"wrap",gap:mob?"4px 0":"4px 16px",marginTop:mob?6:5}}>
+              {(c.cnpj||c.cpf)&&<span style={{fontSize:mob?11:12,color:C.gray600}}>📄 {c.cnpj||c.cpf}</span>}
+              {c.email&&<span style={{fontSize:mob?11:12,color:C.gray600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>✉️ {c.email}</span>}
+              {(c.celular||c.whatsapp||c.telefone)&&<span style={{fontSize:mob?11:12,color:C.gray600}}>📞 {c.celular||c.whatsapp||c.telefone}</span>}
+              {c.contatoNome&&<span style={{fontSize:mob?11:12,color:C.gray600}}>👤 {c.contatoNome}{c.contatoCargo?` · ${c.contatoCargo}`:""}</span>}
+              {c.cidade&&<span style={{fontSize:mob?11:12,color:C.gray600}}>📍 {c.cidade}{c.estado?`/${c.estado}`:""}</span>}
             </div>
           </div>
-          <div style={{display:"flex",gap:6,flexShrink:0}}>
-            <Btn onClick={()=>onOpenPlano(c.id)} variant="primary" size="sm">📒 Plano</Btn>
-            <Btn onClick={()=>{setEditing(c);setShowForm(true);}} variant="ghost" size="sm">Editar</Btn>
-            <Btn onClick={()=>onDelete(c.id)} variant="danger" size="sm">Excluir</Btn>
+          <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr 1fr":"auto auto auto",gap:mob?6:6,flexShrink:0,width:mob?"100%":"auto"}}>
+            <Btn onClick={()=>onOpenPlano(c.id)} variant="primary" size={mob?"xs":"sm"}>📒{mob?"":" Plano"}</Btn>
+            <Btn onClick={()=>{setEditing(c);setShowForm(true);}} variant="ghost" size={mob?"xs":"sm"}>✏️{mob?"":" Editar"}</Btn>
+            <Btn onClick={async ()=>{if(!window.confirm(`Excluir "${c.nomeFantasia||c.razaoSocial}"? Ação não pode ser desfeita.`)){return;}try{await onDelete(c.id);alert("✅ Cliente excluído!");}catch(e){if(e.message?.includes("23503")||e.message?.includes("still referenced")){alert("❌ Erro: Este cliente possui cotações ou dados associados.\nDelete esses dados primeiro.");}else{alert("❌ Erro ao excluir: "+(e.message||JSON.stringify(e)));}console.error("Erro delete:",e);}}} variant="danger" size={mob?"xs":"sm"}>🗑️{mob?"":" Excluir"}</Btn>
           </div>
         </div>
       </Card>)}
     </div>}
-    {showForm&&<Modal title={editing?"Editar Cliente":"Cadastrar Cliente"} onClose={()=>setShowForm(false)} width={800}>
+    {showForm&&<Modal title={editing?"Editar Cliente":"Cadastrar Cliente"} onClose={()=>setShowForm(false)} width={mob?"100%":800}>
       <FormCliente initial={editing} onSave={async(cli)=>{
         try{editing?await onEdit(cli):await onAdd(cli);setShowForm(false);setEditing(null);}
         catch(e){alert("Erro ao salvar: "+(e.message||JSON.stringify(e)));}
@@ -3004,36 +3005,7 @@ export default function App(){
             {view==="clientes"&&can(session,"manage_fornecedores")&&<TelaClientes clientes={clientes}
               onAdd={async c=>{await clientesApi.create(c);await reloadClientes();}}
               onEdit={async c=>{const {id,criadoEm,...rest}=c;await clientesApi.update(id,rest);await reloadClientes();}}
-             onDelete={async id=>{
-  const cliente=clientes.find(c=>c.id===id);
-  const cotacoesDoCliente=cotacoes.filter(cot=>cot.clienteId===id);
-  
-  if(cotacoesDoCliente.length>0){
-    alert(
-      `❌ Não é possível excluir "${cliente?.nomeFantasia||cliente?.razaoSocial}"\n\n`+
-      `Este cliente possui ${cotacoesDoCliente.length} cotação(ões) associada(s).\n\n`+
-      `Delete as cotações primeiro e tente novamente.`
-    );
-    return;
-  }
-  
-  if(!window.confirm(`Tem certeza que deseja excluir o cliente "${cliente?.nomeFantasia||cliente?.razaoSocial}"? Esta ação não pode ser desfeita.`)){
-    return;
-  }
-  
-  try{
-    await clientesApi.delete(id);
-    alert("✅ Cliente excluído com sucesso!");
-    await reloadClientes();
-  }catch(e){
-    if(e.message?.includes("23503")||e.message?.includes("still referenced")){
-      alert("❌ Erro: Este cliente ainda possui dados associados.\nDelete esses dados primeiro.");
-    }else{
-      alert("❌ Erro ao excluir cliente: "+(e.message||JSON.stringify(e)));
-    }
-    console.error("Erro delete cliente:",e);
-  }
-}}
+              onDelete={async id=>{const cliente=clientes.find(c=>c.id===id);const cotacoesDoCliente=cotacoes.filter(cot=>cot.clienteId===id);if(cotacoesDoCliente.length>0){alert(`❌ Não é possível excluir "${cliente?.nomeFantasia||cliente?.razaoSocial}"\n\nEste cliente possui ${cotacoesDoCliente.length} cotação(ões) associada(s).\n\nDelete as cotações primeiro e tente novamente.`);return;}if(!window.confirm(`Tem certeza que deseja excluir "${cliente?.nomeFantasia||cliente?.razaoSocial}"? Esta ação não pode ser desfeita.`)){return;}try{await clientesApi.delete(id);alert("✅ Cliente excluído com sucesso!");await reloadClientes();}catch(e){if(e.message?.includes("23503")||e.message?.includes("still referenced")){alert("❌ Erro: Este cliente ainda possui dados associados.\nDelete esses dados primeiro.");}else{alert("❌ Erro ao excluir cliente: "+(e.message||JSON.stringify(e)));}console.error("Erro delete cliente:",e);}}}
               onOpenPlano={abrirPlanoCliente}/>}
             {view==="convites"&&can(session,"invite")&&<TelaConvites onApprove={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();setPendingCount(c=>Math.max(0,c-1));}}/>}
             {view==="plano"&&can(session,"all")&&<TelaPlanoContas clienteId={currClientePlanoId} clientes={clientes} onBack={()=>{setView("dashboard");setCurrClientePlanoId(null);}}/>}
