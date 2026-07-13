@@ -3004,7 +3004,20 @@ export default function App(){
             {view==="clientes"&&can(session,"manage_fornecedores")&&<TelaClientes clientes={clientes}
               onAdd={async c=>{await clientesApi.create(c);await reloadClientes();}}
               onEdit={async c=>{const {id,criadoEm,...rest}=c;await clientesApi.update(id,rest);await reloadClientes();}}
-              onDelete={async id=>{await clientesApi.delete(id);await reloadClientes();}}
+             onDelete={async id=>{
+  const cliente=clientes.find(c=>c.id===id);
+  if(!window.confirm(`Tem certeza que deseja excluir o cliente "${cliente?.nomeFantasia||cliente?.razaoSocial}"? Esta ação não pode ser desfeita.`)){
+    return;
+  }
+  try{
+    await clientesApi.delete(id);
+    alert("✅ Cliente excluído com sucesso!");
+    await reloadClientes();
+  }catch(e){
+    alert("❌ Erro ao excluir cliente: "+(e.message||JSON.stringify(e)));
+    console.error("Erro delete cliente:",e);
+  }
+}}
               onOpenPlano={abrirPlanoCliente}/>}
             {view==="convites"&&can(session,"invite")&&<TelaConvites onApprove={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();setPendingCount(c=>Math.max(0,c-1));}}/>}
             {view==="plano"&&can(session,"all")&&<TelaPlanoContas clienteId={currClientePlanoId} clientes={clientes} onBack={()=>{setView("dashboard");setCurrClientePlanoId(null);}}/>}
