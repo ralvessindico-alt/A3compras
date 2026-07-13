@@ -372,7 +372,7 @@ function TelaFornecedores({fornecedores,onAdd,onEdit,onDelete}){
 }
 
 // ── Formulário Cliente (mesmo formato do Fornecedor) ──────────────────────────
-const EMPTY_CLIENTE=()=>({id:null,razaoSocial:"",nomeFantasia:"",tipoPessoa:"PJ",cnpj:"",cpf:"",ie:"",email:"",email2:"",telefone:"",celular:"",whatsapp:"",site:"",contatoNome:"",contatoCargo:"",cep:"",logradouro:"",numero:"",complemento:"",bairro:"",cidade:"",estado:"",categoria:"",condPagamento:"",obs:"",ativo:true});
+const EMPTY_CLIENTE=()=>({id:null,razaoSocial:"",nomeFantasia:"",tipoPessoa:"PJ",cnpj:"",cpf:"",ie:"",email:"",email2:"",telefone:"",celular:"",whatsapp:"",site:"",contatoNome:"",contatoCargo:"",cep:"",logradouro:"",numero:"",complemento:"",bairro:"",cidade:"",estado:"",categoria:"",condPagamento:"",numeroPedidoProximo:1,obs:"",ativo:true});
 
 function FormCliente({initial,onSave,onCancel}){
   const [f,setF]=useState(initial||EMPTY_CLIENTE());
@@ -415,6 +415,7 @@ function FormCliente({initial,onSave,onCancel}){
     <SectionDivider>Comercial</SectionDivider>
     <div style={G("1fr 1fr")}>
       <div><Lbl>Condição de Pagamento</Lbl><Sel value={f.condPagamento} onChange={set("condPagamento")} options={COND_PAGAMENTO} placeholder="Selecione..."/></div>
+      <FormField label="Próximo Nº PO de Compra" subtitle="Começar em 1 para novo cliente ou número atual se entrando no meio do processo"><Inp type="number" value={f.numeroPedidoProximo||1} onChange={v=>set("numeroPedidoProximo")(parseInt(v)||1)} min="1" placeholder="1"/></FormField>
     </div>
     <SectionDivider>Observações</SectionDivider>
     <Inp value={f.obs} onChange={set("obs")} placeholder="Notas internas, histórico..." rows={3}/>
@@ -836,7 +837,7 @@ function TelaPlanoContas({onBack,clienteId,clientes}){
 }
 
 const EMPTY_COT=()=>({
-  titulo:"",clienteId:"",
+  titulo:"",clienteId:"",numeroPO:"",
   descricaoAquisicao:"",justificativa:"",centrosCusto:"Ordinária",classificacao:"",planoContas:"",
   urgente:false,necessario:true,responsavel:"",aprovador:"",
   status:"aberta",
@@ -867,10 +868,15 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
     </div>
     <div style={{marginTop:12}}>
       <Lbl>Cliente / Condomínio</Lbl>
-      <select value={c.clienteId||""} onChange={e=>set("clienteId")(e.target.value)} style={{width:"100%",border:`1.5px solid ${C.gray200}`,borderRadius:8,padding:"9px 12px",fontSize:14,fontFamily:"inherit",color:c.clienteId?C.gray800:C.gray400,background:C.white,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+      <select value={c.clienteId||""} onChange={e=>{const cId=e.target.value;set("clienteId")(cId);const cli=clientes?.find(x=>x.id===cId);if(cli){set("numeroPO")(`PO-${String(cli.numeroPedidoProximo||1).padStart(4,'0')}`);}}} style={{width:"100%",border:`1.5px solid ${C.gray200}`,borderRadius:8,padding:"9px 12px",fontSize:14,fontFamily:"inherit",color:c.clienteId?C.gray800:C.gray400,background:C.white,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
         <option value="">Selecione o cliente...</option>
         {(clientes||[]).map(cl=><option key={cl.id} value={cl.id}>{cl.nomeFantasia||cl.razaoSocial}</option>)}
       </select>
+    </div>
+    <div style={{marginTop:12}}>
+      <Lbl>Número PO de Compra</Lbl>
+      <Inp value={c.numeroPO||""} onChange={set("numeroPO")} placeholder="PO-0001" disabled={!c.clienteId} style={{background:!c.clienteId?C.gray100:C.white}} readOnly/>
+      <div style={{fontSize:11,color:C.gray400,marginTop:4}}>Pré-preenchido automaticamente. Será incrementado ao confirmar a cotação.</div>
     </div>
     <SectionDivider>Objeto da Cotação</SectionDivider>
     <div style={{marginBottom:12}}><Lbl required>Título</Lbl><Inp value={c.titulo} onChange={set("titulo")} placeholder="Resumo em uma linha – Ex: Lixeira 120L Pedal Preto"/></div>
