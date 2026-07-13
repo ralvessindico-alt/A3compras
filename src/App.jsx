@@ -847,6 +847,7 @@ const EMPTY_COT=()=>({
 
 function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
   const [c,setC]=useState(EMPTY_COT());
+  const [showPlano,setShowPlano]=useState(false);
   const set=(k)=>(v)=>setC(p=>({...p,[k]:v}));
   const setItem=(id,k,v)=>setC(p=>({...p,itens:p.itens.map(i=>i.id===id?{...i,[k]:v}:i)}));
   const addItem=()=>setC(p=>({...p,itens:[...p.itens,{id:uid(),descricao:"",unidade:"un",quantidade:1}]}));
@@ -860,6 +861,18 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
     onSave({...c,titulo:c.titulo.trim(),itens:c.itens.filter(i=>i.descricao.trim()),fornecedores:fSel,
       status:comoRascunho?"rascunho":(fSel.length?"cotando":"aberta")});
   };
+  
+  if(showPlano && c.clienteId){
+    return <Modal title="Plano de Contas do Cliente" onClose={()=>setShowPlano(false)} width="100%">
+      <div style={{height:"600px",overflowY:"auto"}}>
+        <TelaPlanoContas clienteId={c.clienteId} clientes={clientes} onBack={()=>setShowPlano(false)}/>
+      </div>
+      <div style={{marginTop:16,display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <Btn onClick={()=>setShowPlano(false)} variant="navy">Voltar para Cotação</Btn>
+      </div>
+    </Modal>;
+  }
+  
   return <Modal title="Nova Cotação de Compra" onClose={onClose} width={700}>
     <SectionDivider>Identificação do Pedido</SectionDivider>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px 14px",marginBottom:4}}>
@@ -878,6 +891,10 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
       <Inp value={c.numeroPO||""} onChange={set("numeroPO")} placeholder="PC-0001" style={{background:C.white}}/>
       <div style={{fontSize:11,color:C.gray400,marginTop:4}}>Pré-preenchido automaticamente. Pode ser editado manualmente se necessário.</div>
     </div>
+    {c.clienteId&&<div style={{marginTop:12}}>
+      <Btn onClick={()=>setShowPlano(true)} variant="light" size="sm">📒 Ver Plano de Contas Completo</Btn>
+      <div style={{fontSize:11,color:C.gray400,marginTop:4}}>Visualize todas as contas e subcontas do cliente selecionado</div>
+    </div>}
     <SectionDivider>Objeto da Cotação</SectionDivider>
     <div style={{marginBottom:12}}><Lbl required>Título</Lbl><Inp value={c.titulo} onChange={set("titulo")} placeholder="Resumo em uma linha – Ex: Lixeira 120L Pedal Preto"/></div>
     <div style={{marginBottom:12}}><Lbl required>Descrição da Aquisição</Lbl><Inp value={c.descricaoAquisicao} onChange={set("descricaoAquisicao")} placeholder="Descreva o que será adquirido, onde será utilizado..." rows={3}/></div>
