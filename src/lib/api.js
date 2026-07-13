@@ -131,9 +131,9 @@ export const fornecedoresApi = {
 export const clientesApi = crudFactory("clientes");
 
 /**
- * Obter próximo número de PO formatado para um cliente
+ * Obter próximo número de PC formatado para um cliente
  * @param {string} clienteId - UUID do cliente
- * @returns {Promise<string>} - Formato: "PO-0001"
+ * @returns {Promise<string>} - Formato: "PC-0001"
  */
 clientesApi.getProximoPO = async (clienteId) => {
   try {
@@ -145,7 +145,7 @@ clientesApi.getProximoPO = async (clienteId) => {
     
     if (error) throw error;
     const num = data?.numero_pedido_proximo || 1;
-    return `PO-${String(num).padStart(4, '0')}`;
+    return `PC-${String(num).padStart(4, '0')}`;
   } catch (err) {
     console.error('❌ clientesApi.getProximoPO:', err.message);
     throw err;
