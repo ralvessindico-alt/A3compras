@@ -620,8 +620,14 @@ function TelaPlanoContas({onBack,clienteId,clientes}){
   const [erro,setErro]=useState("");
 
   const reload=async()=>{
-    const d=await planoContasApi.list(clienteId);setLista(d);
-    const exp={};d.filter(i=>i.nivel===1).forEach(i=>{exp[i.id]=true;});setExpandidos(exp);
+    try{
+      const d=await planoContasApi.list(clienteId);
+      console.log("✅ Plano de Contas carregado:", {clienteId, total: d.length, dados: d});
+      setLista(d);
+      const exp={};d.filter(i=>i.nivel===1).forEach(i=>{exp[i.id]=true;});setExpandidos(exp);
+    }catch(e){
+      console.error("❌ Erro ao carregar plano:", e);
+    }
   };
   useEffect(()=>{reload();},[clienteId]);
 
