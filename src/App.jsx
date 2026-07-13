@@ -3006,15 +3006,31 @@ export default function App(){
               onEdit={async c=>{const {id,criadoEm,...rest}=c;await clientesApi.update(id,rest);await reloadClientes();}}
              onDelete={async id=>{
   const cliente=clientes.find(c=>c.id===id);
+  const cotacoesDoCliente=cotacoes.filter(cot=>cot.clienteId===id);
+  
+  if(cotacoesDoCliente.length>0){
+    alert(
+      `❌ Não é possível excluir "${cliente?.nomeFantasia||cliente?.razaoSocial}"\n\n`+
+      `Este cliente possui ${cotacoesDoCliente.length} cotação(ões) associada(s).\n\n`+
+      `Delete as cotações primeiro e tente novamente.`
+    );
+    return;
+  }
+  
   if(!window.confirm(`Tem certeza que deseja excluir o cliente "${cliente?.nomeFantasia||cliente?.razaoSocial}"? Esta ação não pode ser desfeita.`)){
     return;
   }
+  
   try{
     await clientesApi.delete(id);
     alert("✅ Cliente excluído com sucesso!");
     await reloadClientes();
   }catch(e){
-    alert("❌ Erro ao excluir cliente: "+(e.message||JSON.stringify(e)));
+    if(e.message?.includes("23503")||e.message?.includes("still referenced")){
+      alert("❌ Erro: Este cliente ainda possui dados associados.\nDelete esses dados primeiro.");
+    }else{
+      alert("❌ Erro ao excluir cliente: "+(e.message||JSON.stringify(e)));
+    }
     console.error("Erro delete cliente:",e);
   }
 }}
