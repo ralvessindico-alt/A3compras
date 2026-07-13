@@ -1157,7 +1157,7 @@ function generatePrintHTML(cotacao) {
     </tr>`).join('');
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
-  <title>${cotacao.numeroPedido} – ${cotacao.titulo}</title>
+  <title>${cotacao.numeroPO||cotacao.numeroPedido} – ${cotacao.titulo}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800;900&display=swap');
     *{box-sizing:border-box;margin:0;padding:0;}
@@ -1188,7 +1188,7 @@ function generatePrintHTML(cotacao) {
       <td style="background:#f0f2f8;padding:8px 12px;border-radius:0 8px 8px 0;">
         <table style="width:100%;">
           <tr>
-            <td style="padding:2px 10px 2px 0;"><div class="section-label">Nº DO PEDIDO</div><div class="section-value" style="color:#1b2e8a;">${cotacao.numeroPedido}</div></td>
+            <td style="padding:2px 10px 2px 0;"><div class="section-label">Nº DO PEDIDO</div><div class="section-value" style="color:#1b2e8a;">${cotacao.numeroPO||cotacao.numeroPedido}</div></td>
             <td style="padding:2px 10px 2px 0;"><div class="section-label">DATA</div><div class="section-value">${cotacao.dataCriacao||"—"}</div></td>
             <td style="padding:2px 10px 2px 0;"><div class="section-label">RESPONSÁVEL</div><div class="section-value">${cotacao.responsavel||"—"}</div></td>
             <td style="padding:2px 10px 2px 0;"><div class="section-label">APROVADOR</div><div class="section-value">${cotacao.aprovador||"—"}</div></td>
@@ -1196,7 +1196,7 @@ function generatePrintHTML(cotacao) {
           </tr>
           <tr>
             ${cotacao.clienteNome?`<td colspan="2" style="padding-top:6px;"><div class="section-label">CLIENTE / CONDOMÍNIO</div><div class="section-value">${cotacao.clienteNome}</div></td>`:""}
-            ${(cotacao.planoContasLabel&&cotacao.planoContasLabel!=="—")?`<td colspan="3" style="padding-top:6px;"><div class="section-label">PLANO DE CONTAS</div><div class="section-value">${cotacao.planoContasLabel}</div></td>`:""}
+            ${(cotacao.planoContasLabel&&cotacao.planoContasLabel!=="—")?`<td colspan="3" style="padding-top:6px;"><div class="section-label">PLANO DE CONTAS</div><div class="section-value">${cotacao.planoContasCodigo?`[${cotacao.planoContasCodigo}] `:""} ${cotacao.planoContasLabel}</div></td>`:""}
           </tr>
           ${cotacao.justificativa?`<tr><td colspan="5" style="padding-top:6px;"><div class="section-label">JUSTIFICATIVA</div><div style="font-size:10px;color:#4b5563;line-height:1.4;">${cotacao.justificativa}</div></td></tr>`:""}
         </table>
@@ -1314,7 +1314,7 @@ function generatePrintHTML(cotacao) {
 
 // ── Detalhe + Comparativo ────────────────────────────────────────────────────
 // ── Visualização do Pedido de Compra ─────────────────────────────────────────
-function PedidoView({cotacao,planoLabel,clienteNome,onClose}){
+function PedidoView({cotacao,planoLabel,planoCodigo,clienteNome,onClose}){
   const mob=useMobile();
   // Guards para campos JSONB que podem vir null do Supabase
   const itens=Array.isArray(cotacao?.itens)?cotacao.itens:[];
@@ -1325,7 +1325,7 @@ function PedidoView({cotacao,planoLabel,clienteNome,onClose}){
 
   // Impressão via blob — garante A4 landscape, nome correto e CSS limpo
   const handlePrint=()=>{
-    const html=generatePrintHTML({...cot,planoContasLabel:planoLabel||"—",clienteNome:clienteNome||""});
+    const html=generatePrintHTML({...cot,planoContasLabel:planoLabel||"—",planoContasCodigo:planoCodigo||"—",clienteNome:clienteNome||""});
     const blob=new Blob([html],{type:"text/html;charset=utf-8"});
     const url=URL.createObjectURL(blob);
     const w=window.open(url,"_blank");
@@ -1387,7 +1387,7 @@ function PedidoView({cotacao,planoLabel,clienteNome,onClose}){
           {/* ── CLASSIFICAÇÃO ── */}
           <div style={{background:"#F0F2F8",padding:"10px 28px",display:"flex",gap:24,flexWrap:"wrap",borderBottom:`1px solid ${C.gray200}`}}>
             {cot.centrosCusto&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>TIPO DE DESPESA </span><span style={{fontSize:12,fontWeight:800,color:cot.centrosCusto==="Ordinária"?C.navy:"#7C3AED"}}>{cot.centrosCusto==="Ordinária"?"📅":"⚡"} {cot.centrosCusto}</span></div>}
-            {cot.planoContas&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>PLANO DE CONTAS </span><span style={{fontSize:12,fontWeight:800,color:C.gray800}}>{planoLabel||"—"}</span></div>}
+            {cot.planoContas&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>PLANO DE CONTAS </span><span style={{fontSize:12,fontWeight:800,color:C.gray800}}>{planoCodigo?`[${planoCodigo}] `:""}{planoLabel||"—"}</span></div>}
             {cot.classificacao&&<div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>CLASSIFICAÇÃO </span><span style={{fontSize:12,fontWeight:700,color:C.gray700}}>{cot.classificacao}</span></div>}
             <div style={{marginLeft:"auto",display:"flex",gap:16}}>
               <div><span style={{fontSize:9,fontWeight:800,color:C.gray400,letterSpacing:0.6}}>URGENTE </span><span style={{fontSize:12,fontWeight:800,color:cot.urgente?C.red:C.gray400}}>{cot.urgente?"SIM":"NÃO"}</span></div>
@@ -1612,13 +1612,15 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
   const [editMeta,setEditMeta]=useState(false);
   const [metaDraft,setMetaDraft]=useState({});
   const [planoLabel,setPlanoLabel]=useState("—");
+  const [planoCodigo,setPlanoCodigo]=useState("—");
 
-  // Resolve plano de contas UUID → caminho legível (ex: "Manutenção › Elétrica")
+  // Resolve plano de contas UUID → caminho legível (ex: "Manutenção › Elétrica") + código
   useEffect(()=>{
-    if(!cot.planoContas){setPlanoLabel("—");return;}
+    if(!cot.planoContas){setPlanoLabel("—");setPlanoCodigo("—");return;}
     loadPlanoContas().then(lista=>{
       const item=lista.find(i=>i.id===cot.planoContas);
       setPlanoLabel(item?getPath(lista,item):"—");
+      setPlanoCodigo(item?.codigo||"—");
     });
   },[cot.planoContas]);
 
@@ -1740,7 +1742,7 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
             {cot.centrosCusto==="Ordinária"?"📅":"⚡"} {cot.centrosCusto}
           </span>
         </div>}
-        {cot.planoContas&&<div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>PLANO DE CONTAS</div><div style={{fontSize:13,fontWeight:700,color:C.gray800}}>{planoLabel}</div></div>}
+        {cot.planoContas&&<div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>PLANO DE CONTAS</div><div style={{fontSize:13,fontWeight:700,color:C.gray800}}>{planoCodigo?`[${planoCodigo}] `:""}{planoLabel}</div></div>}
         <div style={{display:"flex",gap:14}}>
           <div><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>URGENTE</div><div style={{fontSize:14,fontWeight:700,color:cot.urgente?C.red:C.gray400}}>{cot.urgente?"SIM":"NÃO"}</div></div>
           <div style={{marginLeft:16}}><div style={{fontSize:10,fontWeight:800,color:C.gray400,letterSpacing:0.6,marginBottom:2}}>NECESSÁRIO</div><div style={{fontSize:14,fontWeight:700,color:cot.necessario?C.green:C.gray400}}>{cot.necessario?"SIM":"NÃO"}</div></div>
@@ -2064,7 +2066,7 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
         <Btn onClick={()=>{onUpdate({...cot,...metaDraft});setEditMeta(false);}} variant="navy">Salvar</Btn>
       </div>
     </Modal>}
-    {showPedido&&<PedidoView cotacao={cot} planoLabel={planoLabel} clienteNome={cliente?.nomeFantasia||cliente?.razaoSocial||""} onClose={()=>setShowPedido(false)}/>}
+    {showPedido&&<PedidoView cotacao={cot} planoLabel={planoLabel} planoCodigo={planoCodigo} clienteNome={cliente?.nomeFantasia||cliente?.razaoSocial||""} onClose={()=>setShowPedido(false)}/>}
   </div>;
 }
 function ModalVincular({fornecedores,vinculados,onClose,onSave,itensCotacao}){
