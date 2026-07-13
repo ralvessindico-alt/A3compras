@@ -130,6 +130,62 @@ export const fornecedoresApi = {
 
 export const clientesApi = crudFactory("clientes");
 
+/**
+ * Obter próximo número de PO formatado para um cliente
+ * @param {string} clienteId - UUID do cliente
+ * @returns {Promise<string>} - Formato: "PO-0001"
+ */
+clientesApi.getProximoPO = async (clienteId) => {
+  try {
+    const { data, error } = await supabase
+      .from('clientes')
+      .select('numero_pedido_proximo')
+      .eq('id', clienteId)
+      .single();
+    
+    if (error) throw error;
+    const num = data?.numero_pedido_proximo || 1;
+    return `PO-${String(num).padStart(4, '0')}`;
+  } catch (err) {
+    console.error('❌ clientesApi.getProximoPO:', err.message);
+    throw err;
+  }
+};
+
+/**
+ * Incrementar número de PO após confirmação de cotação
+ * @param {string} clienteId - UUID do cliente
+ * @returns {Promise<number>} - Novo valor de numero_pedido_proximo
+ */
+clientesApi.incrementarPO = async (clienteId) => {
+  try {
+    // Buscar valor atual
+    const { data: cliente, error: errGet } = await supabase
+      .from('clientes')
+      .select('numero_pedido_proximo')
+      .eq('id', clienteId)
+      .single();
+    
+    if (errGet) throw errGet;
+    
+    const novoNum = (cliente?.numero_pedido_proximo || 1) + 1;
+    
+    // Atualizar com novo valor
+    const { data: res, error: errUpd } = await supabase
+      .from('clientes')
+      .update({ numero_pedido_proximo: novoNum })
+      .eq('id', clienteId)
+      .select()
+      .single();
+    
+    if (errUpd) throw errUpd;
+    return fromDb(res).numeroPedidoProximo;
+  } catch (err) {
+    console.error('❌ clientesApi.incrementarPO:', err.message);
+    throw err;
+  }
+};
+
 // ============================================================================
 // API: Plano de Contas com suporte a cliente_id
 // ============================================================================
@@ -446,6 +502,30 @@ export const cotacoesApi = {
   aprovar: async (id, status) => {
     const { error } = await supabase.rpc("aprovar_cotacao", { p_id: id, p_status: status });
     if (error) throw error;
+  },
+  /**
+   * Confirmar cotação e incrementar PO do cliente
+   * @param {string} id - ID da cotação
+   * @param {string} clienteId - ID do cliente
+   */
+  confirmarComIncrementoPO: async (id, clienteId) => {
+    try {
+      // 1. Atualizar status da cotação para "confirmada"
+      const { error: errUpd } = await supabase
+        .from("cotacoes")
+        .update({ status: "confirmada" })
+        .eq("id", id);
+      
+      if (errUpd) throw errUpd;
+      
+      // 2. Incrementar PO do cliente
+      await clientesApi.incrementarPO(clienteId);
+      
+      return true;
+    } catch (err) {
+      console.error('❌ cotacoesApi.confirmarComIncrementoPO:', err.message);
+      throw err;
+    }
   },
 };
 
