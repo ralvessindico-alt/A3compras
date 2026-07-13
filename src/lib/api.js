@@ -18,8 +18,21 @@ export async function getMyProfile(userId) {
 }
 
 // ── camelCase <-> snake_case ─────────────────────────────────────────────────
-const camelToSnake = (s) => s.replace(/[A-Z]/g, (l) => "_" + l.toLowerCase());
-const snakeToCamel = (s) => s.replace(/_([a-z])/g, (_, l) => l.toUpperCase());
+// ATENÇÃO: a conversão automática QUEBRA com siglas (2+ maiúsculas seguidas).
+//   camelToSnake("numeroPO")  ->  "numero_p_o"   ❌  (esperado: "numero_po")
+// Isso fazia o campo ser descartado silenciosamente pelo stripUnknownCols.
+// Qualquer campo com sigla DEVE ser declarado aqui.
+const FIELD_MAP = {
+  numeroPO: "numero_po",   // Número do Pedido de Compra digitado pelo usuário
+};
+const FIELD_MAP_REV = Object.fromEntries(
+  Object.entries(FIELD_MAP).map(([camel, snake]) => [snake, camel])
+);
+
+const camelToSnake = (s) =>
+  FIELD_MAP[s] || s.replace(/[A-Z]/g, (l) => "_" + l.toLowerCase());
+const snakeToCamel = (s) =>
+  FIELD_MAP_REV[s] || s.replace(/_([a-z])/g, (_, l) => l.toUpperCase());
 
 function toDb(obj) {
   const out = {};
@@ -464,6 +477,7 @@ const COT_COLS_SAFE = new Set([
 // Colunas adicionadas por migrations opcionais
 const COT_COLS_EXTRA = new Set([
   "historico","token_aprovacao","assinatura_sindico","anexos","os_vinculadas",
+  "numero_po",   // ← exige a migration SQL_NUMERO_PO_COTACOES.sql
 ]);
 const COT_COLS = new Set([...COT_COLS_SAFE, ...COT_COLS_EXTRA]);
 
