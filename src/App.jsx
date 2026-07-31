@@ -886,15 +886,24 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
       <div><Lbl>Aprovador</Lbl><Inp value={c.aprovador} onChange={set("aprovador")} placeholder="Ex: Katia Macedo"/></div>
     </div>
     <div style={{marginTop:12}}>
-      <Lbl>Cliente / Condomínio</Lbl>
-      <select value={c.clienteId||""} onChange={e=>{const cId=e.target.value;set("clienteId")(cId);const cli=clientes?.find(x=>x.id===cId);if(cli){set("numeroPO")(`PC-${String(cli.numeroPedidoProximo||1).padStart(4,'0')}`);}}} style={{width:"100%",border:`1.5px solid ${C.gray200}`,borderRadius:8,padding:"9px 12px",fontSize:14,fontFamily:"inherit",color:c.clienteId?C.gray800:C.gray400,background:C.white,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+     <Lbl>Cliente / Condomínio</Lbl>
+<select value={c.clienteId||""} onChange={e=>{
+  const cId=e.target.value;
+  set("clienteId")(cId);
+  const cli=clientes?.find(x=>x.id===cId);
+  if(cli){
+    clientesApi.getProximoPO(cId)
+      .then(po => set("numeroPO")(po))
+      .catch(err => console.error("❌ Erro ao obter PC:", err));
+  }
+}}
         <option value="">Selecione o cliente...</option>
         {(clientes||[]).map(cl=><option key={cl.id} value={cl.id}>{cl.nomeFantasia||cl.razaoSocial}</option>)}
       </select>
     </div>
     <div style={{marginTop:12}}>
       <Lbl>Número PC de Compra</Lbl>
-      <Inp value={c.numeroPO||""} onChange={set("numeroPO")} placeholder="PC-0001" style={{background:C.white}}/>
+      <Inp value={c.numeroPO||""} onChange={set("numeroPO")} placeholder="PC001_2026" style={{background:C.white}}/>
       <div style={{fontSize:11,color:C.gray400,marginTop:4}}>Pré-preenchido automaticamente. Pode ser editado manualmente se necessário.</div>
     </div>
     {c.clienteId&&<div style={{marginTop:12}}>
@@ -2812,10 +2821,19 @@ export default function App(){
   const abrirPlanoCliente=(clienteId)=>{setCurrClientePlanoId(clienteId);setView('plano');}; // ← NOVO
 
   const createCot=async(c)=>{
-    const novo=await cotacoesApi.create(c);
-    await reloadCotacoes();
-    setCurrCot(novo);setShowNova(false);
-  };
+  const novo=await cotacoesApi.create(c);
+  // 🔄 Incrementar número de PC do cliente
+  if(novo && c.clienteId) {
+    try {
+      await clientesApi.incrementarPO(c.clienteId);
+      console.log(`✅ PC incrementado para cliente ${c.clienteId}`);
+    } catch(err) {
+      console.error("⚠️ Incremento de PO falhou, mas cotação foi criada:", err);
+    }
+  }
+  await reloadCotacoes();
+  setCurrCot(novo);setShowNova(false);
+};
 
   const updCot=useCallback(async(u)=>{
     const ant=cotacoes.find(c=>c.id===u.id)||{};
