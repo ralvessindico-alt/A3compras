@@ -71,12 +71,6 @@ const escapeHtml=(v)=>{
     .replace(/'/g,"&#39;");
 };
 
-Agora preciso aplicar escapeHtml() nas 21 interpolações dentro de generatePrintHTML(). Vou te mandar a função inteira substituída — é mais seguro que 21 diffs pontuais nesse bloco denso.
-
-ENCONTRE a função inteira generatePrintHTML (começa em function generatePrintHTML(cotacao) { e termina no } antes do comentário // ── Detalhe + Comparativo):
-
-SUBSTITUA POR:
-
 javascript
 function generatePrintHTML(cotacao) {
   const fmtR=(v)=>v==null||v===""?"—":Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
