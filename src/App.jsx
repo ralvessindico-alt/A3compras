@@ -58,6 +58,194 @@ const fmtCPF=(v)=>v.replace(/\D/g,"").replace(/^(\d{3})(\d{3})(\d{3})(\d{2}).*/,
 const fmtCEP=(v)=>v.replace(/\D/g,"").replace(/^(\d{5})(\d{3}).*/,"$1-$2");
 const fmtTel=(v)=>{const d=v.replace(/\D/g,"");if(d.length<=10)return d.replace(/^(\d{2})(\d{4})(\d{0,4}).*/,"($1) $2-$3");return d.replace(/^(\d{2})(\d{5})(\d{0,4}).*/,"($1) $2-$3");};
 
+// Escapa caracteres HTML perigosos antes de interpolar em templates de impressão.
+// Sem isso, um título/descrição contendo <script> ou aspas pode quebrar o
+// documento gerado ou (em teoria) executar no contexto do PDF aberto.
+const escapeHtml=(v)=>{
+  if(v==null)return "";
+  return String(v)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#39;");
+};
+
+Agora preciso aplicar escapeHtml() nas 21 interpolações dentro de generatePrintHTML(). Vou te mandar a função inteira substituída — é mais seguro que 21 diffs pontuais nesse bloco denso.
+
+ENCONTRE a função inteira generatePrintHTML (começa em function generatePrintHTML(cotacao) { e termina no } antes do comentário // ── Detalhe + Comparativo):
+
+SUBSTITUA POR:
+
+javascript
+function generatePrintHTML(cotacao) {
+  const fmtR=(v)=>v==null||v===""?"—":Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+  const getProp=(fid,iid)=>cotacao.propostas.find(p=>p.fornecedorId===fid&&p.itemId===iid);
+  const getCond=(fid,field)=>escapeHtml((cotacao.condicoesFornecedor||[]).find(c=>c.fornecedorId===fid)?.[field]||"—");
+  const bestByItem={};
+  cotacao.itens.forEach(item=>{const ps=cotacao.fornecedores.map(f=>getProp(f.id,item.id)?.preco).filter(v=>v!=null);if(ps.length)bestByItem[item.id]=Math.min(...ps);});
+  const totalF=(fid)=>cotacao.itens.reduce((s,item)=>{const p=getProp(fid,item.id);return s+(p?p.preco*item.quantidade:0);},0);
+  const totals=cotacao.fornecedores.map(f=>({id:f.id,total:totalF(f.id)})).filter(t=>t.total>0);
+  const bestTotal=totals.length?Math.min(...totals.map(t=>t.total)):null;
+  const winner=bestTotal!=null?cotacao.fornecedores.find(f=>totalF(f.id)===bestTotal):null;
+  const nF=cotacao.fornecedores.length;
+
+  const colPct = nF > 0 ? Math.floor(55/nF) : 18;
+  const descW = 100 - 5 - 5 - (colPct*2*nF);
+
+  const itemRows=cotacao.itens.map((item,idx)=>{
+    return `<tr style="background:${idx%2===0?"#fff":"#f9fafb"}">
+      <td style="padding:7px 8px;font-size:11px;color:#374151;font-weight:600;border-bottom:1px solid #e5e7eb;">
+        <span style="color:#9ca3af;margin-right:4px;font-size:10px;">${String(idx+1).padStart(2,'0')}</span>${escapeHtml(item.descricao)}
+      </td>
+      <td style="padding:7px 6px;text-align:center;font-size:10px;color:#6b7280;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.unidade)}</td>
+      <td style="padding:7px 6px;text-align:center;font-size:11px;font-weight:700;color:#374151;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.quantidade)}</td>
+      ${cotacao.fornecedores.map(f=>{
+        const p=getProp(f.id,item.id);
+        const isBest=p!=null&&bestByItem[item.id]!=null&&p.preco===bestByItem[item.id];
+        const total=p?p.preco*item.quantidade:null;
+        const bg=isBest?"rgba(22,163,74,.08)":"transparent";
+        const clr=isBest?"#16a34a":"#374151";
+        const fw=isBest?"800":"600";
+        return `<td style="padding:6px;text-align:right;font-size:10px;border-bottom:1px solid #e5e7eb;border-left:1px solid #e5e7eb;background:${bg};color:${clr};font-weight:${fw};">${p?fmtR(p.preco):"—"}</td>
+                <td style="padding:6px;text-align:right;font-size:10px;border-bottom:1px solid #e5e7eb;border-right:1px solid #e5e7eb;background:${bg};color:${clr};font-weight:${fw};">${total!=null?(isBest?'★ ':'')+fmtR(total):"—"}</td>`;
+      }).join('')}
+    </tr>`;
+  }).join('');
+
+  const condRows=["Entrega","Garantia","Pagamento","Obs."].map((label,i)=>{
+    const fieldKey=["entrega","garantia","pagamento","obs"][i];
+    return `<tr style="background:${i%2===0?"#fff":"#f9fafb"}">
+      <td colspan="3" style="padding:6px 8px;font-size:10px;font-weight:700;color:#4b5563;border-bottom:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">${label}</td>
+      ${cotacao.fornecedores.map(f=>`<td colspan="2" style="padding:6px 8px;text-align:center;font-size:10px;color:#374151;border-bottom:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">${getCond(f.id,fieldKey)}</td>`).join('')}
+    </tr>`;
+  }).join('');
+
+  const suppTable=cotacao.fornecedores.map((f,i)=>`
+    <tr>
+      <td style="padding:6px 8px;text-align:center;font-size:10px;font-weight:800;color:#1b2e8a;">${i+1}</td>
+      <td style="padding:6px 8px;font-size:10px;font-weight:700;color:#111827;">${escapeHtml(f.razaoSocial)}</td>
+      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${escapeHtml(f.cnpj||f.cpf||"—")}</td>
+      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${escapeHtml(f.celular||f.telefone||"—")}</td>
+      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${escapeHtml(f.email||"—")}</td>
+      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${getCond(f.id,"entrega")}</td>
+      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${getCond(f.id,"garantia")}</td>
+      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${getCond(f.id,"pagamento")}</td>
+    </tr>`).join('');
+
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
+  <title>${escapeHtml(cotacao.numeroPO||cotacao.numeroPedido)} – ${escapeHtml(cotacao.titulo)}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800;900&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'DM Sans',Arial,sans-serif;font-size:11px;color:#111827;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    @page{size:A4 landscape;margin:8mm 10mm;}
+    @media print{body{font-size:10px;}.no-print{display:none!important;}}
+    table{border-collapse:collapse;width:100%;}
+    .section-label{font-size:8px;font-weight:800;color:#9ca3af;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:2px;}
+    .section-value{font-size:11px;font-weight:700;color:#111827;}
+    td{vertical-align:top;}
+  ${'</style>'}
+  ${'</head>'}<body>
+
+  <!-- PRINT BUTTON -->
+  <div class="no-print" style="position:fixed;top:12px;right:16px;display:flex;gap:8px;z-index:999;">
+    <button onclick="window.print()" style="background:#1b2e8a;color:#fff;border:none;padding:9px 20px;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit;">🖨 Imprimir / Salvar PDF</button>
+    <button onclick="window.close()" style="background:#f3f4f6;color:#4b5563;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;">Fechar</button>
+  </div>
+
+  <!-- CABEÇALHO -->
+  <table style="margin-bottom:8px;">
+    <tr>
+      <td style="background:#1b2e8a;padding:10px 14px;border-radius:8px 0 0 8px;width:38%;">
+        <div style="font-size:8px;font-weight:800;color:#ffc84a;letter-spacing:1px;margin-bottom:3px;">FORMULÁRIO DE COMPRA</div>
+        <div style="font-size:14px;font-weight:900;color:#fff;line-height:1.25;">${escapeHtml(cotacao.titulo)}</div>
+        ${cotacao.descricaoAquisicao?`<div style="font-size:9px;color:rgba(255,255,255,.5);margin-top:3px;">${escapeHtml(cotacao.descricaoAquisicao)}</div>`:""}
+      </td>
+      <td style="background:#f0f2f8;padding:8px 12px;border-radius:0 8px 8px 0;">
+        <table style="width:100%;">
+          <tr>
+            <td style="padding:2px 10px 2px 0;"><div class="section-label">Nº DO PEDIDO</div><div class="section-value" style="color:#1b2e8a;">${escapeHtml(cotacao.numeroPO||cotacao.numeroPedido)}</div></td>
+            <td style="padding:2px 10px 2px 0;"><div class="section-label">DATA</div><div class="section-value">${escapeHtml(cotacao.dataCriacao||"—")}</div></td>
+            <td style="padding:2px 10px 2px 0;"><div class="section-label">RESPONSÁVEL</div><div class="section-value">${escapeHtml(cotacao.responsavel||"—")}</div></td>
+            <td style="padding:2px 10px 2px 0;"><div class="section-label">APROVADOR</div><div class="section-value">${escapeHtml(cotacao.aprovador||"—")}</div></td>
+            <td style="padding:2px 0;"><div class="section-label">CENTRO DE CUSTO</div><div class="section-value">${escapeHtml(cotacao.centrosCusto||"—")}</div></td>
+          </tr>
+          <tr>
+            ${cotacao.clienteNome?`<td colspan="2" style="padding-top:6px;"><div class="section-label">CLIENTE / CONDOMÍNIO</div><div class="section-value">${escapeHtml(cotacao.clienteNome)}</div></td>`:""}
+            ${(cotacao.planoContasLabel&&cotacao.planoContasLabel!=="—")?`<td colspan="3" style="padding-top:6px;"><div class="section-label">PLANO DE CONTAS</div><div class="section-value">${cotacao.planoContasCodigo?`[${escapeHtml(cotacao.planoContasCodigo)}] `:""} ${escapeHtml(cotacao.planoContasLabel)}</div></td>`:""}
+          </tr>
+          ${cotacao.justificativa?`<tr><td colspan="5" style="padding-top:6px;"><div class="section-label">JUSTIFICATIVA</div><div style="font-size:10px;color:#4b5563;line-height:1.4;">${escapeHtml(cotacao.justificativa)}</div></td></tr>`:""}
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <!-- TABELA COMPARATIVA -->
+  <div style="font-size:9px;font-weight:900;color:#1b2e8a;letter-spacing:0.8px;margin-bottom:5px;">QUADRO COMPARATIVO DE PROPOSTAS</div>
+  <table style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
+    <thead>
+      <tr style="background:#1b2e8a;">
+        <th style="padding:8px 8px;text-align:left;font-size:10px;color:#ffc84a;font-weight:800;letter-spacing:0.3px;width:${Math.max(descW,20)}%;">DESCRIÇÃO</th>
+        <th style="padding:8px 6px;text-align:center;font-size:10px;color:rgba(255,255,255,.7);font-weight:700;width:5%;">UNID</th>
+        <th style="padding:8px 6px;text-align:center;font-size:10px;color:rgba(255,255,255,.7);font-weight:700;width:5%;">QTD</th>
+        ${cotacao.fornecedores.map((f,i)=>`<th colspan="2" style="padding:8px 6px;text-align:center;font-size:10px;color:#fff;font-weight:900;border-left:1px solid rgba(255,255,255,.15);width:${colPct*2}%;">
+          <span style="background:rgba(255,255,255,.15);border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;margin-right:4px;">${i+1}</span>${escapeHtml(f.nomeFantasia||f.razaoSocial)}
+          ${f.cnpj?`<div style="font-size:8px;color:rgba(255,255,255,.45);font-weight:500;margin-top:1px;">${escapeHtml(f.cnpj)}</div>`:""}
+        </th>`).join('')}
+      </tr>
+      <tr style="background:#eef1fb;">
+        <th colspan="3" style="padding:4px 8px;"></th>
+        ${cotacao.fornecedores.map(()=>`
+          <th style="padding:4px 6px;text-align:right;font-size:9px;color:#6b7280;font-weight:700;border-left:1px solid #e5e7eb;">VL. UNIT</th>
+          <th style="padding:4px 6px;text-align:right;font-size:9px;color:#6b7280;font-weight:700;border-right:1px solid #e5e7eb;">TOTAL</th>
+        `).join('')}
+      </tr>
+    </thead>
+    <tbody>
+      ${itemRows}
+      <!-- TOTAL -->
+      <tr style="background:#eef1fb;">
+        <td colspan="3" style="padding:9px 8px;font-size:11px;font-weight:900;color:#1b2e8a;letter-spacing:0.3px;">TOTAL GERAL</td>
+        ${cotacao.fornecedores.map(f=>{
+          const total=totalF(f.id);
+          const isBestT=bestTotal!=null&&total===bestTotal&&total>0;
+          return `<td colspan="2" style="padding:9px 8px;text-align:right;font-size:12px;font-weight:900;color:${isBestT?"#16a34a":"#1b2e8a"};border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">${total>0?(isBestT?"★ ":"")+fmtR(total):"—"}</td>`;
+        }).join('')}
+      </tr>
+      <!-- CONDIÇÕES -->
+      <tr style="background:#f0f2f8;">
+        <td colspan="${3+nF*2}" style="padding:5px 8px;font-size:9px;font-weight:900;color:#1b2e8a;letter-spacing:0.8px;">CONDIÇÕES COMERCIAIS</td>
+      </tr>
+      ${condRows}
+    </tbody>
+  </table>
+
+  <!-- RELAÇÃO DAS EMPRESAS -->
+  <div style="font-size:9px;font-weight:900;color:#1b2e8a;letter-spacing:0.8px;margin-bottom:5px;">RELAÇÃO DAS EMPRESAS EM PROCESSO DE COTAÇÃO</div>
+  <table style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
+    <thead>
+      <tr style="background:#eef1fb;">
+        <th style="padding:6px 8px;text-align:center;font-size:9px;font-weight:800;color:#1b2e8a;width:4%;">#</th>
+        <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:800;color:#4b5563;width:22%;">RAZÃO SOCIAL</th>
+        <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:800;color:#4b5563;width:14%;">CNPJ/CPF</th>
+        <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:800;color:#4b5563;width:13%;">CONTATO</th>
+        <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:800;color:#4b5563;width:19%;">E-MAIL</th>
+        <th style="padding:6px 8px;text-align:center;font-size:9px;font-weight:800;color:#4b5563;width:10%;">ENTREGA</th>
+        <th style="padding:6px 8px;text-align:center;font-size:9px;font-weight:800;color:#4b5563;width:10%;">GARANTIA</th>
+        <th style="padding:6px 8px;text-align:center;font-size:9px;font-weight:800;color:#4b5563;width:10%;">PAGAMENTO</th>
+      </tr>
+    </thead>
+    <tbody>${suppTable}</tbody>
+  </table>
+
+  <!-- RODAPÉ: APROVAÇÕES + VENCEDOR -->
+  <table>
+    <tr>
+      <td style="vertical-align:top;width:55%;padding-right:12px;">
+        <div style="font-size:9px;font-weight:900;color:#1b2e8a;letter-spacing:0.8px;margin-bottom:5px;">PROCESSO DE APROVAÇÕES</div>
+        <table style="border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
+          <tr style="background:#eef1fb;">
 const ESTADOS=["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 const CATEGORIAS=["Materiais de Construção","Materiais de Escritório","Equipamentos","Serviços","Tecnologia","Limpeza","Alimentação","Transporte","Outros"];
 const CATEGORIAS_CLIENTE=["Condomínio Residencial","Condomínio Comercial","Condomínio Misto","Empresa Privada","Órgão Público","Pessoa Física","Outros"];
@@ -68,7 +256,22 @@ const CLASSIFICACOES=["Manutenção Itens em Geral","Equipamentos","Obras e Refo
 // ── Plano de Contas hierárquico (3 níveis) ────────────────────────────────────
 // Estrutura: Conta (1) → Subconta (2) → Variação (3)
 // parentId: null = conta | id de conta = subconta | id de subconta = variação
-async function loadPlanoContas(){try{return await planoContasApi.list();}catch{return [];}}
+// Cache simples em módulo — evita reconsultar as ~100+ linhas do plano de
+// contas a cada abertura de select/label na mesma sessão de navegação.
+// Invalidado manualmente após qualquer create/update/delete/reset em TelaPlanoContas.
+let _planoContasCache=null;
+let _planoContasCacheAt=0;
+const PLANO_CONTAS_CACHE_TTL=60000; // 60s — reduz chamadas em navegação rápida sem esconder edições por muito tempo
+
+async function loadPlanoContas(forceRefresh=false){
+  const fresh=!forceRefresh&&_planoContasCache&&(Date.now()-_planoContasCacheAt<PLANO_CONTAS_CACHE_TTL);
+  if(fresh) return _planoContasCache;
+  const data=await planoContasApi.list(); // deixa o erro propagar — quem chama decide como tratar
+  _planoContasCache=data;
+  _planoContasCacheAt=Date.now();
+  return data;
+}
+function invalidatePlanoContasCache(){_planoContasCache=null;_planoContasCacheAt=0;}
 const NIVEL={1:{label:"Conta",      color:C.navy,    bg:"#EEF1FB",indent:0},
              2:{label:"Subconta",   color:"#1D4ED8", bg:"#DBEAFE",indent:20},
              3:{label:"Variação",   color:"#6D28D9", bg:"#EDE9FE",indent:40}};
@@ -485,7 +688,12 @@ function TelaClientes({clientes,onAdd,onEdit,onDelete,onOpenPlano}){
 // Exibe o path completo de um item do plano de contas pelo id
 function PlanoContasLabel({id}){
   const [label,setLabel]=useState(id||"—");
-  useEffect(()=>{if(!id){setLabel("—");return;}loadPlanoContas().then(lista=>{const item=lista.find(i=>i.id===id);setLabel(item?getPath(lista,item):id);});},[id]);
+  useEffect(()=>{
+    if(!id){setLabel("—");return;}
+    loadPlanoContas()
+      .then(lista=>{const item=lista.find(i=>i.id===id);setLabel(item?getPath(lista,item):id);})
+      .catch(err=>{console.error("❌ Erro ao carregar plano de contas:",err.message);setLabel("⚠ Erro ao carregar");});
+  },[id]);
   return <div style={{fontSize:13,fontWeight:700,color:C.gray800}}>{label}</div>;
 }
 
@@ -494,7 +702,11 @@ function ClassificacaoFields({centrosCusto,onCentrosCusto,classificacao,onClassi
   const [contas,setContas]=useState([]);
   const [searchPC,setSearchPC]=useState("");
   const [showPC,setShowPC]=useState(false);
-  useEffect(()=>{loadPlanoContas().then(setContas);},[]);
+ useEffect(()=>{
+    loadPlanoContas()
+      .then(setContas)
+      .catch(err=>console.error("❌ Erro ao carregar plano de contas:",err.message));
+  },[]);
 
   return <div style={{display:"flex",flexDirection:"column",gap:14,marginBottom:4}}>
     {/* Centro de Custo — toggle visual */}
@@ -619,14 +831,16 @@ function TelaPlanoContas({onBack,clienteId,clientes}){
   const [fCodigo,setFCodigo]=useState("");
   const [erro,setErro]=useState("");
 
+ const [erroCarregamento,setErroCarregamento]=useState("");
   const reload=async()=>{
     try{
+      setErroCarregamento("");
       const d=await planoContasApi.list(clienteId);
-      console.log("✅ Plano de Contas carregado:", {clienteId, total: d.length, dados: d});
       setLista(d);
       const exp={};d.filter(i=>i.nivel===1).forEach(i=>{exp[i.id]=true;});setExpandidos(exp);
     }catch(e){
-      console.error("❌ Erro ao carregar plano:", e);
+      console.error("❌ Erro ao carregar plano de contas:",e.message);
+      setErroCarregamento("Não foi possível carregar o plano de contas. Verifique sua conexão e tente novamente.");
     }
   };
   useEffect(()=>{reload();},[clienteId]);
@@ -662,13 +876,15 @@ function TelaPlanoContas({onBack,clienteId,clientes}){
     if(!window.confirm(msg))return;
     // ON DELETE CASCADE no banco já remove os filhos automaticamente.
     await planoContasApi.delete(item.id);
+    invalidatePlanoContasCache();
     await reload();
   };
 
   const resetTudo=async()=>{
     if(window.confirm("Apagar TODOS os itens do plano de contas? Esta ação não pode ser desfeita.")){
       await planoContasApi.resetAll();
-      await reload();
+      invalidatePlanoContasCache();
+    await reload();
     }
   };
 
@@ -684,6 +900,10 @@ function TelaPlanoContas({onBack,clienteId,clientes}){
   ));
 
   return <div>
+    {erroCarregamento&&<div style={{background:C.redLight,border:"1px solid #FCA5A5",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,fontWeight:700,color:C.red,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+      <span>⚠ {erroCarregamento}</span>
+      <Btn onClick={reload} variant="danger" size="sm">Tentar novamente</Btn>
+    </div>}
     {/* Header */}
     <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,marginBottom:20,flexWrap:"wrap"}}>
       <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -1098,7 +1318,7 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
 function generatePrintHTML(cotacao) {
   const fmtR=(v)=>v==null||v===""?"—":Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
   const getProp=(fid,iid)=>cotacao.propostas.find(p=>p.fornecedorId===fid&&p.itemId===iid);
-  const getCond=(fid,field)=>(cotacao.condicoesFornecedor||[]).find(c=>c.fornecedorId===fid)?.[field]||"—";
+  const getCond=(fid,field)=>escapeHtml((cotacao.condicoesFornecedor||[]).find(c=>c.fornecedorId===fid)?.[field]||"—");
   const bestByItem={};
   cotacao.itens.forEach(item=>{const ps=cotacao.fornecedores.map(f=>getProp(f.id,item.id)?.preco).filter(v=>v!=null);if(ps.length)bestByItem[item.id]=Math.min(...ps);});
   const totalF=(fid)=>cotacao.itens.reduce((s,item)=>{const p=getProp(fid,item.id);return s+(p?p.preco*item.quantidade:0);},0);
@@ -1113,10 +1333,10 @@ function generatePrintHTML(cotacao) {
   const itemRows=cotacao.itens.map((item,idx)=>{
     return `<tr style="background:${idx%2===0?"#fff":"#f9fafb"}">
       <td style="padding:7px 8px;font-size:11px;color:#374151;font-weight:600;border-bottom:1px solid #e5e7eb;">
-        <span style="color:#9ca3af;margin-right:4px;font-size:10px;">${String(idx+1).padStart(2,'0')}</span>${item.descricao}
+        <span style="color:#9ca3af;margin-right:4px;font-size:10px;">${String(idx+1).padStart(2,'0')}</span>${escapeHtml(item.descricao)}
       </td>
-      <td style="padding:7px 6px;text-align:center;font-size:10px;color:#6b7280;border-bottom:1px solid #e5e7eb;">${item.unidade}</td>
-      <td style="padding:7px 6px;text-align:center;font-size:11px;font-weight:700;color:#374151;border-bottom:1px solid #e5e7eb;">${item.quantidade}</td>
+      <td style="padding:7px 6px;text-align:center;font-size:10px;color:#6b7280;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.unidade)}</td>
+      <td style="padding:7px 6px;text-align:center;font-size:11px;font-weight:700;color:#374151;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.quantidade)}</td>
       ${cotacao.fornecedores.map(f=>{
         const p=getProp(f.id,item.id);
         const isBest=p!=null&&bestByItem[item.id]!=null&&p.preco===bestByItem[item.id];
@@ -1141,17 +1361,17 @@ function generatePrintHTML(cotacao) {
   const suppTable=cotacao.fornecedores.map((f,i)=>`
     <tr>
       <td style="padding:6px 8px;text-align:center;font-size:10px;font-weight:800;color:#1b2e8a;">${i+1}</td>
-      <td style="padding:6px 8px;font-size:10px;font-weight:700;color:#111827;">${f.razaoSocial}</td>
-      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${f.cnpj||f.cpf||"—"}</td>
-      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${f.celular||f.telefone||"—"}</td>
-      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${f.email||"—"}</td>
+      <td style="padding:6px 8px;font-size:10px;font-weight:700;color:#111827;">${escapeHtml(f.razaoSocial)}</td>
+      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${escapeHtml(f.cnpj||f.cpf||"—")}</td>
+      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${escapeHtml(f.celular||f.telefone||"—")}</td>
+      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${escapeHtml(f.email||"—")}</td>
       <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${getCond(f.id,"entrega")}</td>
       <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${getCond(f.id,"garantia")}</td>
       <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${getCond(f.id,"pagamento")}</td>
     </tr>`).join('');
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
-  <title>${cotacao.numeroPO||cotacao.numeroPedido} – ${cotacao.titulo}</title>
+  <title>${escapeHtml(cotacao.numeroPO||cotacao.numeroPedido)} – ${escapeHtml(cotacao.titulo)}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800;900&display=swap');
     *{box-sizing:border-box;margin:0;padding:0;}
@@ -1176,23 +1396,23 @@ function generatePrintHTML(cotacao) {
     <tr>
       <td style="background:#1b2e8a;padding:10px 14px;border-radius:8px 0 0 8px;width:38%;">
         <div style="font-size:8px;font-weight:800;color:#ffc84a;letter-spacing:1px;margin-bottom:3px;">FORMULÁRIO DE COMPRA</div>
-        <div style="font-size:14px;font-weight:900;color:#fff;line-height:1.25;">${cotacao.titulo}</div>
-        ${cotacao.descricaoAquisicao?`<div style="font-size:9px;color:rgba(255,255,255,.5);margin-top:3px;">${cotacao.descricaoAquisicao}</div>`:""}
+        <div style="font-size:14px;font-weight:900;color:#fff;line-height:1.25;">${escapeHtml(cotacao.titulo)}</div>
+        ${cotacao.descricaoAquisicao?`<div style="font-size:9px;color:rgba(255,255,255,.5);margin-top:3px;">${escapeHtml(cotacao.descricaoAquisicao)}</div>`:""}
       </td>
       <td style="background:#f0f2f8;padding:8px 12px;border-radius:0 8px 8px 0;">
         <table style="width:100%;">
           <tr>
-            <td style="padding:2px 10px 2px 0;"><div class="section-label">Nº DO PEDIDO</div><div class="section-value" style="color:#1b2e8a;">${cotacao.numeroPO||cotacao.numeroPedido}</div></td>
-            <td style="padding:2px 10px 2px 0;"><div class="section-label">DATA</div><div class="section-value">${cotacao.dataCriacao||"—"}</div></td>
-            <td style="padding:2px 10px 2px 0;"><div class="section-label">RESPONSÁVEL</div><div class="section-value">${cotacao.responsavel||"—"}</div></td>
-            <td style="padding:2px 10px 2px 0;"><div class="section-label">APROVADOR</div><div class="section-value">${cotacao.aprovador||"—"}</div></td>
-            <td style="padding:2px 0;"><div class="section-label">CENTRO DE CUSTO</div><div class="section-value">${cotacao.centrosCusto||"—"}</div></td>
+            <td style="padding:2px 10px 2px 0;"><div class="section-label">Nº DO PEDIDO</div><div class="section-value" style="color:#1b2e8a;">${escapeHtml(cotacao.numeroPO||cotacao.numeroPedido)}</div></td>
+            <td style="padding:2px 10px 2px 0;"><div class="section-label">DATA</div><div class="section-value">${escapeHtml(cotacao.dataCriacao||"—")}</div></td>
+            <td style="padding:2px 10px 2px 0;"><div class="section-label">RESPONSÁVEL</div><div class="section-value">${escapeHtml(cotacao.responsavel||"—")}</div></td>
+            <td style="padding:2px 10px 2px 0;"><div class="section-label">APROVADOR</div><div class="section-value">${escapeHtml(cotacao.aprovador||"—")}</div></td>
+            <td style="padding:2px 0;"><div class="section-label">CENTRO DE CUSTO</div><div class="section-value">${escapeHtml(cotacao.centrosCusto||"—")}</div></td>
           </tr>
           <tr>
-            ${cotacao.clienteNome?`<td colspan="2" style="padding-top:6px;"><div class="section-label">CLIENTE / CONDOMÍNIO</div><div class="section-value">${cotacao.clienteNome}</div></td>`:""}
-            ${(cotacao.planoContasLabel&&cotacao.planoContasLabel!=="—")?`<td colspan="3" style="padding-top:6px;"><div class="section-label">PLANO DE CONTAS</div><div class="section-value">${cotacao.planoContasCodigo?`[${cotacao.planoContasCodigo}] `:""} ${cotacao.planoContasLabel}</div></td>`:""}
+            ${cotacao.clienteNome?`<td colspan="2" style="padding-top:6px;"><div class="section-label">CLIENTE / CONDOMÍNIO</div><div class="section-value">${escapeHtml(cotacao.clienteNome)}</div></td>`:""}
+            ${(cotacao.planoContasLabel&&cotacao.planoContasLabel!=="—")?`<td colspan="3" style="padding-top:6px;"><div class="section-label">PLANO DE CONTAS</div><div class="section-value">${cotacao.planoContasCodigo?`[${escapeHtml(cotacao.planoContasCodigo)}] `:""} ${escapeHtml(cotacao.planoContasLabel)}</div></td>`:""}
           </tr>
-          ${cotacao.justificativa?`<tr><td colspan="5" style="padding-top:6px;"><div class="section-label">JUSTIFICATIVA</div><div style="font-size:10px;color:#4b5563;line-height:1.4;">${cotacao.justificativa}</div></td></tr>`:""}
+          ${cotacao.justificativa?`<tr><td colspan="5" style="padding-top:6px;"><div class="section-label">JUSTIFICATIVA</div><div style="font-size:10px;color:#4b5563;line-height:1.4;">${escapeHtml(cotacao.justificativa)}</div></td></tr>`:""}
         </table>
       </td>
     </tr>
@@ -1207,8 +1427,8 @@ function generatePrintHTML(cotacao) {
         <th style="padding:8px 6px;text-align:center;font-size:10px;color:rgba(255,255,255,.7);font-weight:700;width:5%;">UNID</th>
         <th style="padding:8px 6px;text-align:center;font-size:10px;color:rgba(255,255,255,.7);font-weight:700;width:5%;">QTD</th>
         ${cotacao.fornecedores.map((f,i)=>`<th colspan="2" style="padding:8px 6px;text-align:center;font-size:10px;color:#fff;font-weight:900;border-left:1px solid rgba(255,255,255,.15);width:${colPct*2}%;">
-          <span style="background:rgba(255,255,255,.15);border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;margin-right:4px;">${i+1}</span>${f.nomeFantasia||f.razaoSocial}
-          ${f.cnpj?`<div style="font-size:8px;color:rgba(255,255,255,.45);font-weight:500;margin-top:1px;">${f.cnpj}</div>`:""}
+          <span style="background:rgba(255,255,255,.15);border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;margin-right:4px;">${i+1}</span>${escapeHtml(f.nomeFantasia||f.razaoSocial)}
+          ${f.cnpj?`<div style="font-size:8px;color:rgba(255,255,255,.45);font-weight:500;margin-top:1px;">${escapeHtml(f.cnpj)}</div>`:""}
         </th>`).join('')}
       </tr>
       <tr style="background:#eef1fb;">
@@ -1272,9 +1492,9 @@ function generatePrintHTML(cotacao) {
           <tr>
             <td style="padding:8px 10px;text-align:center;font-size:11px;font-weight:800;color:${cotacao.urgente?"#dc2626":"#9ca3af"};">${cotacao.urgente?"SIM":"NÃO"}</td>
             <td style="padding:8px 10px;text-align:center;font-size:11px;font-weight:800;color:${cotacao.necessario?"#16a34a":"#9ca3af"};">${cotacao.necessario?"SIM":"NÃO"}</td>
-            <td style="padding:8px 10px;text-align:center;font-size:11px;font-weight:700;color:#374151;">${cotacao.centrosCusto||"—"}</td>
-            <td style="padding:8px 10px;text-align:center;font-size:10px;font-weight:600;color:#374151;">${cotacao.classificacao||"—"}</td>
-            <td style="padding:8px 10px;text-align:center;font-size:11px;font-weight:700;color:#374151;">${cotacao.aprovador||"—"}</td>
+            <td style="padding:8px 10px;text-align:center;font-size:11px;font-weight:700;color:#374151;">${escapeHtml(cotacao.centrosCusto||"—")}</td>
+            <td style="padding:8px 10px;text-align:center;font-size:10px;font-weight:600;color:#374151;">${escapeHtml(cotacao.classificacao||"—")}</td>
+            <td style="padding:8px 10px;text-align:center;font-size:11px;font-weight:700;color:#374151;">${escapeHtml(cotacao.aprovador||"—")}</td>
           </tr>
         </table>
       </td>
@@ -1284,8 +1504,8 @@ function generatePrintHTML(cotacao) {
           <tr>
             <td style="padding:12px 16px;">
               <div style="font-size:9px;font-weight:800;color:#ffc84a;letter-spacing:0.8px;margin-bottom:4px;">★ MENOR PREÇO TOTAL</div>
-              <div style="font-size:15px;font-weight:900;color:#fff;">${winner.nomeFantasia||winner.razaoSocial}</div>
-              <div style="font-size:9px;color:rgba(255,255,255,.45);margin-top:2px;">${winner.cnpj||winner.cpf||""}</div>
+              <div style="font-size:15px;font-weight:900;color:#fff;">${escapeHtml(winner.nomeFantasia||winner.razaoSocial)}</div>
+              <div style="font-size:9px;color:rgba(255,255,255,.45);margin-top:2px;">${escapeHtml(winner.cnpj||winner.cpf||"")}</div>
             </td>
             <td style="padding:12px 16px;text-align:right;">
               <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:2px;">VALOR FINAL</div>
@@ -1300,7 +1520,7 @@ function generatePrintHTML(cotacao) {
   ${(cotacao.anexos||[]).length>0?`
   <div style="margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px;">
     <div style="font-size:9px;font-weight:900;color:#1b2e8a;letter-spacing:0.8px;margin-bottom:6px;">📎 DOCUMENTOS ANEXADOS</div>
-    ${(cotacao.anexos||[]).map((a,i)=>`<div style="font-size:11px;color:#374151;padding:3px 0;border-bottom:1px solid #f3f4f6;">${String(i+1).padStart(2,"0")}. ${a.name} <span style="color:#9ca3af;">(${(a.size/1024).toFixed(0)} KB)</span></div>`).join("")}
+    ${(cotacao.anexos||[]).map((a,i)=>`<div style="font-size:11px;color:#374151;padding:3px 0;border-bottom:1px solid #f3f4f6;">${String(i+1).padStart(2,"0")}. ${escapeHtml(a.name)} <span style="color:#9ca3af;">(${(a.size/1024).toFixed(0)} KB)</span></div>`).join("")}
     <div style="font-size:9px;color:#9ca3af;margin-top:6px;">* Arquivos disponíveis no sistema A3 Cotações — acesse e imprima cada documento separadamente.</div>
   </div>`:""}
   ${'</body>'}${'</html>'}`;
@@ -2262,6 +2482,7 @@ function TelaConvites({onApprove}){
     const forn=Object.fromEntries(Object.entries(pend.dados).map(([k,v])=>[k.replace(/_([a-z])/g,(_,l)=>l.toUpperCase()),v]));
     onApprove({...forn,ativo:true});
     await pendentesFornecedorApi.delete(pend.id);
+    invalidatePlanoContasCache();
     await reload();
   };
 
@@ -2506,7 +2727,8 @@ function TelaUsuarios(){
       const {data:{session}}=await auth.getSession();
       await usersApi.create(session,{nome:nome.trim(),email:email.trim().toLowerCase(),senha,role,cargo});
       setShowForm(false);setNome("");setEmail("");setSenha("");setRole("comprador");setCargo("");
-      await reload();
+      invalidatePlanoContasCache();
+    await reload();
     }catch(e){setErro(e.message);}
     finally{setSaving(false);}
   };
