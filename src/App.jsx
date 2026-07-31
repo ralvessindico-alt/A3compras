@@ -60,7 +60,7 @@ const fmtTel=(v)=>{const d=v.replace(/\D/g,"");if(d.length<=10)return d.replace(
 
 // Escapa caracteres HTML perigosos antes de interpolar em templates de impressão.
 // Sem isso, um título/descrição contendo <script> ou aspas pode quebrar o
-// documento gerado ou (em teoria) executar no contexto do PDF aberto.
+// documento gerado. Aplicado em generatePrintHTML() em todo campo vindo do usuário.
 const escapeHtml=(v)=>{
   if(v==null)return "";
   return String(v)
@@ -71,175 +71,6 @@ const escapeHtml=(v)=>{
     .replace(/'/g,"&#39;");
 };
 
-javascript
-function generatePrintHTML(cotacao) {
-  const fmtR=(v)=>v==null||v===""?"—":Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
-  const getProp=(fid,iid)=>cotacao.propostas.find(p=>p.fornecedorId===fid&&p.itemId===iid);
-  const getCond=(fid,field)=>escapeHtml((cotacao.condicoesFornecedor||[]).find(c=>c.fornecedorId===fid)?.[field]||"—");
-  const bestByItem={};
-  cotacao.itens.forEach(item=>{const ps=cotacao.fornecedores.map(f=>getProp(f.id,item.id)?.preco).filter(v=>v!=null);if(ps.length)bestByItem[item.id]=Math.min(...ps);});
-  const totalF=(fid)=>cotacao.itens.reduce((s,item)=>{const p=getProp(fid,item.id);return s+(p?p.preco*item.quantidade:0);},0);
-  const totals=cotacao.fornecedores.map(f=>({id:f.id,total:totalF(f.id)})).filter(t=>t.total>0);
-  const bestTotal=totals.length?Math.min(...totals.map(t=>t.total)):null;
-  const winner=bestTotal!=null?cotacao.fornecedores.find(f=>totalF(f.id)===bestTotal):null;
-  const nF=cotacao.fornecedores.length;
-
-  const colPct = nF > 0 ? Math.floor(55/nF) : 18;
-  const descW = 100 - 5 - 5 - (colPct*2*nF);
-
-  const itemRows=cotacao.itens.map((item,idx)=>{
-    return `<tr style="background:${idx%2===0?"#fff":"#f9fafb"}">
-      <td style="padding:7px 8px;font-size:11px;color:#374151;font-weight:600;border-bottom:1px solid #e5e7eb;">
-        <span style="color:#9ca3af;margin-right:4px;font-size:10px;">${String(idx+1).padStart(2,'0')}</span>${escapeHtml(item.descricao)}
-      </td>
-      <td style="padding:7px 6px;text-align:center;font-size:10px;color:#6b7280;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.unidade)}</td>
-      <td style="padding:7px 6px;text-align:center;font-size:11px;font-weight:700;color:#374151;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.quantidade)}</td>
-      ${cotacao.fornecedores.map(f=>{
-        const p=getProp(f.id,item.id);
-        const isBest=p!=null&&bestByItem[item.id]!=null&&p.preco===bestByItem[item.id];
-        const total=p?p.preco*item.quantidade:null;
-        const bg=isBest?"rgba(22,163,74,.08)":"transparent";
-        const clr=isBest?"#16a34a":"#374151";
-        const fw=isBest?"800":"600";
-        return `<td style="padding:6px;text-align:right;font-size:10px;border-bottom:1px solid #e5e7eb;border-left:1px solid #e5e7eb;background:${bg};color:${clr};font-weight:${fw};">${p?fmtR(p.preco):"—"}</td>
-                <td style="padding:6px;text-align:right;font-size:10px;border-bottom:1px solid #e5e7eb;border-right:1px solid #e5e7eb;background:${bg};color:${clr};font-weight:${fw};">${total!=null?(isBest?'★ ':'')+fmtR(total):"—"}</td>`;
-      }).join('')}
-    </tr>`;
-  }).join('');
-
-  const condRows=["Entrega","Garantia","Pagamento","Obs."].map((label,i)=>{
-    const fieldKey=["entrega","garantia","pagamento","obs"][i];
-    return `<tr style="background:${i%2===0?"#fff":"#f9fafb"}">
-      <td colspan="3" style="padding:6px 8px;font-size:10px;font-weight:700;color:#4b5563;border-bottom:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">${label}</td>
-      ${cotacao.fornecedores.map(f=>`<td colspan="2" style="padding:6px 8px;text-align:center;font-size:10px;color:#374151;border-bottom:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">${getCond(f.id,fieldKey)}</td>`).join('')}
-    </tr>`;
-  }).join('');
-
-  const suppTable=cotacao.fornecedores.map((f,i)=>`
-    <tr>
-      <td style="padding:6px 8px;text-align:center;font-size:10px;font-weight:800;color:#1b2e8a;">${i+1}</td>
-      <td style="padding:6px 8px;font-size:10px;font-weight:700;color:#111827;">${escapeHtml(f.razaoSocial)}</td>
-      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${escapeHtml(f.cnpj||f.cpf||"—")}</td>
-      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${escapeHtml(f.celular||f.telefone||"—")}</td>
-      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${escapeHtml(f.email||"—")}</td>
-      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${getCond(f.id,"entrega")}</td>
-      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${getCond(f.id,"garantia")}</td>
-      <td style="padding:6px 8px;font-size:10px;color:#4b5563;">${getCond(f.id,"pagamento")}</td>
-    </tr>`).join('');
-
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
-  <title>${escapeHtml(cotacao.numeroPO||cotacao.numeroPedido)} – ${escapeHtml(cotacao.titulo)}</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800;900&display=swap');
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'DM Sans',Arial,sans-serif;font-size:11px;color:#111827;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    @page{size:A4 landscape;margin:8mm 10mm;}
-    @media print{body{font-size:10px;}.no-print{display:none!important;}}
-    table{border-collapse:collapse;width:100%;}
-    .section-label{font-size:8px;font-weight:800;color:#9ca3af;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:2px;}
-    .section-value{font-size:11px;font-weight:700;color:#111827;}
-    td{vertical-align:top;}
-  ${'</style>'}
-  ${'</head>'}<body>
-
-  <!-- PRINT BUTTON -->
-  <div class="no-print" style="position:fixed;top:12px;right:16px;display:flex;gap:8px;z-index:999;">
-    <button onclick="window.print()" style="background:#1b2e8a;color:#fff;border:none;padding:9px 20px;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit;">🖨 Imprimir / Salvar PDF</button>
-    <button onclick="window.close()" style="background:#f3f4f6;color:#4b5563;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;">Fechar</button>
-  </div>
-
-  <!-- CABEÇALHO -->
-  <table style="margin-bottom:8px;">
-    <tr>
-      <td style="background:#1b2e8a;padding:10px 14px;border-radius:8px 0 0 8px;width:38%;">
-        <div style="font-size:8px;font-weight:800;color:#ffc84a;letter-spacing:1px;margin-bottom:3px;">FORMULÁRIO DE COMPRA</div>
-        <div style="font-size:14px;font-weight:900;color:#fff;line-height:1.25;">${escapeHtml(cotacao.titulo)}</div>
-        ${cotacao.descricaoAquisicao?`<div style="font-size:9px;color:rgba(255,255,255,.5);margin-top:3px;">${escapeHtml(cotacao.descricaoAquisicao)}</div>`:""}
-      </td>
-      <td style="background:#f0f2f8;padding:8px 12px;border-radius:0 8px 8px 0;">
-        <table style="width:100%;">
-          <tr>
-            <td style="padding:2px 10px 2px 0;"><div class="section-label">Nº DO PEDIDO</div><div class="section-value" style="color:#1b2e8a;">${escapeHtml(cotacao.numeroPO||cotacao.numeroPedido)}</div></td>
-            <td style="padding:2px 10px 2px 0;"><div class="section-label">DATA</div><div class="section-value">${escapeHtml(cotacao.dataCriacao||"—")}</div></td>
-            <td style="padding:2px 10px 2px 0;"><div class="section-label">RESPONSÁVEL</div><div class="section-value">${escapeHtml(cotacao.responsavel||"—")}</div></td>
-            <td style="padding:2px 10px 2px 0;"><div class="section-label">APROVADOR</div><div class="section-value">${escapeHtml(cotacao.aprovador||"—")}</div></td>
-            <td style="padding:2px 0;"><div class="section-label">CENTRO DE CUSTO</div><div class="section-value">${escapeHtml(cotacao.centrosCusto||"—")}</div></td>
-          </tr>
-          <tr>
-            ${cotacao.clienteNome?`<td colspan="2" style="padding-top:6px;"><div class="section-label">CLIENTE / CONDOMÍNIO</div><div class="section-value">${escapeHtml(cotacao.clienteNome)}</div></td>`:""}
-            ${(cotacao.planoContasLabel&&cotacao.planoContasLabel!=="—")?`<td colspan="3" style="padding-top:6px;"><div class="section-label">PLANO DE CONTAS</div><div class="section-value">${cotacao.planoContasCodigo?`[${escapeHtml(cotacao.planoContasCodigo)}] `:""} ${escapeHtml(cotacao.planoContasLabel)}</div></td>`:""}
-          </tr>
-          ${cotacao.justificativa?`<tr><td colspan="5" style="padding-top:6px;"><div class="section-label">JUSTIFICATIVA</div><div style="font-size:10px;color:#4b5563;line-height:1.4;">${escapeHtml(cotacao.justificativa)}</div></td></tr>`:""}
-        </table>
-      </td>
-    </tr>
-  </table>
-
-  <!-- TABELA COMPARATIVA -->
-  <div style="font-size:9px;font-weight:900;color:#1b2e8a;letter-spacing:0.8px;margin-bottom:5px;">QUADRO COMPARATIVO DE PROPOSTAS</div>
-  <table style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
-    <thead>
-      <tr style="background:#1b2e8a;">
-        <th style="padding:8px 8px;text-align:left;font-size:10px;color:#ffc84a;font-weight:800;letter-spacing:0.3px;width:${Math.max(descW,20)}%;">DESCRIÇÃO</th>
-        <th style="padding:8px 6px;text-align:center;font-size:10px;color:rgba(255,255,255,.7);font-weight:700;width:5%;">UNID</th>
-        <th style="padding:8px 6px;text-align:center;font-size:10px;color:rgba(255,255,255,.7);font-weight:700;width:5%;">QTD</th>
-        ${cotacao.fornecedores.map((f,i)=>`<th colspan="2" style="padding:8px 6px;text-align:center;font-size:10px;color:#fff;font-weight:900;border-left:1px solid rgba(255,255,255,.15);width:${colPct*2}%;">
-          <span style="background:rgba(255,255,255,.15);border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;margin-right:4px;">${i+1}</span>${escapeHtml(f.nomeFantasia||f.razaoSocial)}
-          ${f.cnpj?`<div style="font-size:8px;color:rgba(255,255,255,.45);font-weight:500;margin-top:1px;">${escapeHtml(f.cnpj)}</div>`:""}
-        </th>`).join('')}
-      </tr>
-      <tr style="background:#eef1fb;">
-        <th colspan="3" style="padding:4px 8px;"></th>
-        ${cotacao.fornecedores.map(()=>`
-          <th style="padding:4px 6px;text-align:right;font-size:9px;color:#6b7280;font-weight:700;border-left:1px solid #e5e7eb;">VL. UNIT</th>
-          <th style="padding:4px 6px;text-align:right;font-size:9px;color:#6b7280;font-weight:700;border-right:1px solid #e5e7eb;">TOTAL</th>
-        `).join('')}
-      </tr>
-    </thead>
-    <tbody>
-      ${itemRows}
-      <!-- TOTAL -->
-      <tr style="background:#eef1fb;">
-        <td colspan="3" style="padding:9px 8px;font-size:11px;font-weight:900;color:#1b2e8a;letter-spacing:0.3px;">TOTAL GERAL</td>
-        ${cotacao.fornecedores.map(f=>{
-          const total=totalF(f.id);
-          const isBestT=bestTotal!=null&&total===bestTotal&&total>0;
-          return `<td colspan="2" style="padding:9px 8px;text-align:right;font-size:12px;font-weight:900;color:${isBestT?"#16a34a":"#1b2e8a"};border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">${total>0?(isBestT?"★ ":"")+fmtR(total):"—"}</td>`;
-        }).join('')}
-      </tr>
-      <!-- CONDIÇÕES -->
-      <tr style="background:#f0f2f8;">
-        <td colspan="${3+nF*2}" style="padding:5px 8px;font-size:9px;font-weight:900;color:#1b2e8a;letter-spacing:0.8px;">CONDIÇÕES COMERCIAIS</td>
-      </tr>
-      ${condRows}
-    </tbody>
-  </table>
-
-  <!-- RELAÇÃO DAS EMPRESAS -->
-  <div style="font-size:9px;font-weight:900;color:#1b2e8a;letter-spacing:0.8px;margin-bottom:5px;">RELAÇÃO DAS EMPRESAS EM PROCESSO DE COTAÇÃO</div>
-  <table style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
-    <thead>
-      <tr style="background:#eef1fb;">
-        <th style="padding:6px 8px;text-align:center;font-size:9px;font-weight:800;color:#1b2e8a;width:4%;">#</th>
-        <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:800;color:#4b5563;width:22%;">RAZÃO SOCIAL</th>
-        <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:800;color:#4b5563;width:14%;">CNPJ/CPF</th>
-        <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:800;color:#4b5563;width:13%;">CONTATO</th>
-        <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:800;color:#4b5563;width:19%;">E-MAIL</th>
-        <th style="padding:6px 8px;text-align:center;font-size:9px;font-weight:800;color:#4b5563;width:10%;">ENTREGA</th>
-        <th style="padding:6px 8px;text-align:center;font-size:9px;font-weight:800;color:#4b5563;width:10%;">GARANTIA</th>
-        <th style="padding:6px 8px;text-align:center;font-size:9px;font-weight:800;color:#4b5563;width:10%;">PAGAMENTO</th>
-      </tr>
-    </thead>
-    <tbody>${suppTable}</tbody>
-  </table>
-
-  <!-- RODAPÉ: APROVAÇÕES + VENCEDOR -->
-  <table>
-    <tr>
-      <td style="vertical-align:top;width:55%;padding-right:12px;">
-        <div style="font-size:9px;font-weight:900;color:#1b2e8a;letter-spacing:0.8px;margin-bottom:5px;">PROCESSO DE APROVAÇÕES</div>
-        <table style="border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
-          <tr style="background:#eef1fb;">
 const ESTADOS=["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 const CATEGORIAS=["Materiais de Construção","Materiais de Escritório","Equipamentos","Serviços","Tecnologia","Limpeza","Alimentação","Transporte","Outros"];
 const CATEGORIAS_CLIENTE=["Condomínio Residencial","Condomínio Comercial","Condomínio Misto","Empresa Privada","Órgão Público","Pessoa Física","Outros"];
@@ -250,22 +81,25 @@ const CLASSIFICACOES=["Manutenção Itens em Geral","Equipamentos","Obras e Refo
 // ── Plano de Contas hierárquico (3 níveis) ────────────────────────────────────
 // Estrutura: Conta (1) → Subconta (2) → Variação (3)
 // parentId: null = conta | id de conta = subconta | id de subconta = variação
+//
 // Cache simples em módulo — evita reconsultar as ~100+ linhas do plano de
 // contas a cada abertura de select/label na mesma sessão de navegação.
-// Invalidado manualmente após qualquer create/update/delete/reset em TelaPlanoContas.
+// Invalidado manualmente após qualquer create/update/delete/reset (ver
+// invalidatePlanoContasCache, chamado dentro de TelaPlanoContas).
 let _planoContasCache=null;
 let _planoContasCacheAt=0;
-const PLANO_CONTAS_CACHE_TTL=60000; // 60s — reduz chamadas em navegação rápida sem esconder edições por muito tempo
+const PLANO_CONTAS_CACHE_TTL=60000; // 60s
 
 async function loadPlanoContas(forceRefresh=false){
   const fresh=!forceRefresh&&_planoContasCache&&(Date.now()-_planoContasCacheAt<PLANO_CONTAS_CACHE_TTL);
   if(fresh) return _planoContasCache;
-  const data=await planoContasApi.list(); // deixa o erro propagar — quem chama decide como tratar
+  const data=await planoContasApi.list(); // erro propaga — quem chama decide como tratar (sem fallback silencioso)
   _planoContasCache=data;
   _planoContasCacheAt=Date.now();
   return data;
 }
 function invalidatePlanoContasCache(){_planoContasCache=null;_planoContasCacheAt=0;}
+
 const NIVEL={1:{label:"Conta",      color:C.navy,    bg:"#EEF1FB",indent:0},
              2:{label:"Subconta",   color:"#1D4ED8", bg:"#DBEAFE",indent:20},
              3:{label:"Variação",   color:"#6D28D9", bg:"#EDE9FE",indent:40}};
@@ -284,6 +118,21 @@ const getPath=(lista,item)=>{
   if(item.nivel===3){const sub=lista.find(i=>i.id===item.parentId);const conta=lista.find(i=>i.id===sub?.parentId);return `${conta?.descricao||""} › ${sub?.descricao||""} › ${item.descricao}`;}
   return item.descricao;
 };
+
+// Calcula o valor total da proposta vencedora (menor preço total) de uma cotação.
+// Usado pela Visão Financeira. Não substitui os cálculos locais já existentes em
+// DetalheCotacao/PedidoView/generatePrintHTML — mantidos como estão para não
+// arriscar regressão nesses fluxos já validados.
+function calcularMelhorTotal(cotacao){
+  const itens=Array.isArray(cotacao.itens)?cotacao.itens:[];
+  const fornecedores=Array.isArray(cotacao.fornecedores)?cotacao.fornecedores:[];
+  const propostas=Array.isArray(cotacao.propostas)?cotacao.propostas:[];
+  if(!fornecedores.length||!itens.length) return 0;
+  const getProp=(fid,iid)=>propostas.find(p=>p.fornecedorId===fid&&p.itemId===iid);
+  const totalF=(fid)=>itens.reduce((s,item)=>{const p=getProp(fid,item.id);return s+(p?p.preco*item.quantidade:0);},0);
+  const totals=fornecedores.map(f=>totalF(f.id)).filter(t=>t>0);
+  return totals.length?Math.min(...totals):0;
+}
 
 const STATUS_COLORS={
   rascunho:  {bg:"#F3F4F6", color:"#6B7280", border:"#D1D5DB"},
@@ -612,7 +461,6 @@ function FormCliente({initial,onSave,onCancel}){
     <SectionDivider>Comercial</SectionDivider>
     <div style={G("1fr 1fr")}>
       <div><Lbl>Condição de Pagamento</Lbl><Sel value={f.condPagamento} onChange={set("condPagamento")} options={COND_PAGAMENTO} placeholder="Selecione..."/></div>
-      <FormField label="Próximo Nº PC de Compra" subtitle="Começar em 1 para novo cliente ou número atual se entrando no meio do processo"><Inp type="number" value={f.numeroPedidoProximo||1} onChange={v=>set("numeroPedidoProximo")(parseInt(v)||1)} min="1" placeholder="1"/></FormField>
     </div>
     <SectionDivider>Observações</SectionDivider>
     <Inp value={f.obs} onChange={set("obs")} placeholder="Notas internas, histórico..." rows={3}/>
@@ -696,7 +544,7 @@ function ClassificacaoFields({centrosCusto,onCentrosCusto,classificacao,onClassi
   const [contas,setContas]=useState([]);
   const [searchPC,setSearchPC]=useState("");
   const [showPC,setShowPC]=useState(false);
- useEffect(()=>{
+  useEffect(()=>{
     loadPlanoContas()
       .then(setContas)
       .catch(err=>console.error("❌ Erro ao carregar plano de contas:",err.message));
@@ -824,8 +672,8 @@ function TelaPlanoContas({onBack,clienteId,clientes}){
   const [fDescricao,setFDescricao]=useState("");
   const [fCodigo,setFCodigo]=useState("");
   const [erro,setErro]=useState("");
+  const [erroCarregamento,setErroCarregamento]=useState("");
 
- const [erroCarregamento,setErroCarregamento]=useState("");
   const reload=async()=>{
     try{
       setErroCarregamento("");
@@ -858,6 +706,7 @@ function TelaPlanoContas({onBack,clienteId,clientes}){
     } else {
       await planoContasApi.update(modal.item.id,{codigo:fCodigo.trim(),descricao:fDescricao.trim()});
     }
+    invalidatePlanoContasCache();
     await reload();
     setModal(null);
   };
@@ -878,7 +727,7 @@ function TelaPlanoContas({onBack,clienteId,clientes}){
     if(window.confirm("Apagar TODOS os itens do plano de contas? Esta ação não pode ser desfeita.")){
       await planoContasApi.resetAll();
       invalidatePlanoContasCache();
-    await reload();
+      await reload();
     }
   };
 
@@ -894,7 +743,7 @@ function TelaPlanoContas({onBack,clienteId,clientes}){
   ));
 
   return <div>
-    {erroCarregamento&&<div style={{background:C.redLight,border:"1px solid #FCA5A5",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,fontWeight:700,color:C.red,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+    {erroCarregamento&&<div style={{background:C.redLight,border:"1px solid #FCA5A5",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,fontWeight:700,color:C.red,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
       <span>⚠ {erroCarregamento}</span>
       <Btn onClick={reload} variant="danger" size="sm">Tentar novamente</Btn>
     </div>}
@@ -1081,7 +930,7 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
     onSave({...c,titulo:c.titulo.trim(),itens:c.itens.filter(i=>i.descricao.trim()),fornecedores:fSel,
       status:comoRascunho?"rascunho":(fSel.length?"cotando":"aberta")});
   };
-  
+
   if(showPlano && c.clienteId){
     return <Modal title="Plano de Contas do Cliente" onClose={()=>setShowPlano(false)} width="100%">
       <div style={{height:"600px",overflowY:"auto"}}>
@@ -1092,14 +941,14 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
       </div>
     </Modal>;
   }
-  
+
   return <Modal title="Nova Cotação de Compra" onClose={onClose} width={700}>
     <SectionDivider>Identificação do Pedido</SectionDivider>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px 14px",marginBottom:4}}>
       <div><Lbl required>Responsável pelo Pedido</Lbl><Inp value={c.responsavel} onChange={set("responsavel")} placeholder="Nome completo"/></div>
       <div><Lbl>Aprovador</Lbl><Inp value={c.aprovador} onChange={set("aprovador")} placeholder="Ex: Katia Macedo"/></div>
     </div>
-     <div style={{marginTop:12}}>
+    <div style={{marginTop:12}}>
       <Lbl>Cliente / Condomínio</Lbl>
       <select value={c.clienteId||""} onChange={e=>{
         const cId=e.target.value;
@@ -1109,6 +958,15 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
         {(clientes||[]).map(cl=><option key={cl.id} value={cl.id}>{cl.nomeFantasia||cl.razaoSocial}</option>)}
       </select>
     </div>
+    <div style={{marginTop:12}}>
+      <Lbl>Número PC de Compra</Lbl>
+      <Inp value={c.numeroPO||""} onChange={set("numeroPO")} placeholder="PC001_2026" style={{background:C.white}}/>
+      <div style={{fontSize:11,color:C.gray400,marginTop:4}}>Digite o número do pedido manualmente.</div>
+    </div>
+    {c.clienteId&&<div style={{marginTop:12}}>
+      <Btn onClick={()=>setShowPlano(true)} variant="light" size="sm">📒 Ver Plano de Contas Completo</Btn>
+      <div style={{fontSize:11,color:C.gray400,marginTop:4}}>Visualize todas as contas e subcontas do cliente selecionado</div>
+    </div>}
     <SectionDivider>Objeto da Cotação</SectionDivider>
     <div style={{marginBottom:12}}><Lbl required>Título</Lbl><Inp value={c.titulo} onChange={set("titulo")} placeholder="Resumo em uma linha – Ex: Lixeira 120L Pedal Preto"/></div>
     <div style={{marginBottom:12}}><Lbl required>Descrição da Aquisição</Lbl><Inp value={c.descricaoAquisicao} onChange={set("descricaoAquisicao")} placeholder="Descreva o que será adquirido, onde será utilizado..." rows={3}/></div>
@@ -1147,41 +1005,24 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
 }
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
-const DEMO_COTACAO={
-  id:"__demo__",numeroPedido:"PC001_2026",titulo:"Lixeira 120L Plástico Pedal Preto",
-  dataCriacao:"21/05/2026",responsavel:"Rodrigo Alves",aprovador:"Katia Macedo",
-  descricaoAquisicao:"Aquisição de uma lixeira 120 litros plástico pedal preto para utilizar na churrasqueira a carvão — área comum do Condomínio Wonder Cidade Jardim.",
-  justificativa:"A lixeira que estava na churrasqueira está danificada e necessita ser substituída para manter a organização e higiene da área comum.",
-  centrosCusto:"Ordinária",planoContas:"3.1.01",classificacao:"Manutenção Itens em Geral",
-  urgente:false,necessario:true,status:"fechada",
-  itens:[
-    {id:"i1",descricao:"Lixeira 120L Plástico Pedal Preto",unidade:"Peça",quantidade:1},
-    {id:"i2",descricao:"Frete",unidade:"Un",quantidade:1},
-  ],
-  fornecedores:[
-    {id:"f1",razaoSocial:"Dutra Máquinas",nomeFantasia:"Dutra Máquinas",cnpj:"50.970.342/0001-02",celular:"(11) 2795-8830",email:""},
-    {id:"f2",razaoSocial:"Mercado Livre S.A.",nomeFantasia:"Mercado Livre",cnpj:"03.007.331/0001-41",celular:"0800 637 7246",email:""},
-    {id:"f3",razaoSocial:"Shopee Brasil",nomeFantasia:"Shopee",cnpj:"35.635.824/0001-12",celular:"0800 887 1551",email:""},
-  ],
-  propostas:[
-    {fornecedorId:"f1",itemId:"i1",preco:223.16},
-    {fornecedorId:"f1",itemId:"i2",preco:131.47},
-    {fornecedorId:"f2",itemId:"i1",preco:346.00},
-    {fornecedorId:"f3",itemId:"i1",preco:189.05},
-    {fornecedorId:"f3",itemId:"i2",preco:9.62},
-  ],
-  condicoesFornecedor:[
-    {fornecedorId:"f1",entrega:"3 dias",garantia:"6 meses",pagamento:"30 dias",obs:""},
-    {fornecedorId:"f2",entrega:"5 dias",garantia:"1 ano",pagamento:"À vista",obs:"Frete grátis acima R$200"},
-    {fornecedorId:"f3",entrega:"7 dias",garantia:"1 ano",pagamento:"À vista",obs:""},
-  ],
-};
+const STATUS_OPCOES=[
+  {id:"rascunho",label:"Rascunhos"},
+  {id:"aberta",label:"Aguard. Fornecedores"},
+  {id:"cotando",label:"Coletando Preços"},
+  {id:"fechada",label:"Encerradas"},
+  {id:"aprovada",label:"Aprovadas"},
+  {id:"pendente",label:"Pend. Execução"},
+  {id:"concluida",label:"Concluídas"},
+  {id:"rejeitada",label:"Rejeitadas"},
+];
+const STATUS_FINALIZADOS=["concluida","rejeitada"];
 
-function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
+function Dashboard({cotacoes,clientesEscopo,avisoEscopo,onCreate,onOpen,onDelete}){
   const {user}=useAuth();
   const mob=useMobile();
   const [search,setSearch]=useState("");
-  const [filtroStatus,setFiltroStatus]=useState("todos");
+  const [clienteFiltro,setClienteFiltro]=useState("");
+  const [statusFiltro,setStatusFiltro]=useState(STATUS_OPCOES.map(o=>o.id));
 
   const st={
     total:cotacoes.length,
@@ -1191,44 +1032,48 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
     aprovadas:cotacoes.filter(c=>c.status==="aprovada").length,
     pendentes:cotacoes.filter(c=>c.status==="pendente").length,
     concluidas:cotacoes.filter(c=>c.status==="concluida").length,
+    rejeitadas:cotacoes.filter(c=>c.status==="rejeitada").length,
   };
 
-  const filtradas=[...cotacoes].reverse().filter(c=>{
-    const matchSearch=!search||[c.titulo,c.numeroPedido,c.responsavel].some(v=>v?.toLowerCase().includes(search.toLowerCase()));
-    const matchStatus=filtroStatus==="todos"||c.status===filtroStatus;
-    return matchSearch&&matchStatus;
-  });
+  const finalizadosOcultos=!statusFiltro.some(s=>STATUS_FINALIZADOS.includes(s));
+  const toggleFinalizados=()=>{
+    setStatusFiltro(prev=>finalizadosOcultos
+      ? [...new Set([...prev,...STATUS_FINALIZADOS])]
+      : prev.filter(s=>!STATUS_FINALIZADOS.includes(s)));
+  };
+  const toggleStatus=(id)=>setStatusFiltro(prev=>prev.includes(id)?prev.filter(s=>s!==id):[...prev,id]);
 
-  const STATUS_FILTROS=[
-    {id:"todos",label:"Todas"},
-    {id:"rascunho",label:"Rascunhos"},
-    {id:"aberta",label:"Aguard. Fornecedores"},
-    {id:"cotando",label:"Coletando Preços"},
-    {id:"fechada",label:"Encerradas"},
-    {id:"aprovada",label:"Aprovadas"},
-    {id:"pendente",label:"Pend. Execução"},
-    {id:"concluida",label:"Concluídas"},
-  ];
+  const filtradas=cotacoes
+    .filter(c=>{
+      const matchSearch=!search||[c.titulo,c.numeroPedido,c.responsavel].some(v=>v?.toLowerCase().includes(search.toLowerCase()));
+      const matchStatus=statusFiltro.includes(c.status);
+      const matchCliente=!clienteFiltro||c.clienteId===clienteFiltro;
+      return matchSearch&&matchStatus&&matchCliente;
+    })
+    .sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
 
   const handleDelete=(e,id)=>{
     e.stopPropagation();
     if(window.confirm("Excluir esta cotação? A ação não pode ser desfeita.")) onDelete(id);
   };
 
-
   return <div>
+    {avisoEscopo&&<div style={{background:"#FEF9C3",border:"1px solid #FDE68A",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:12,fontWeight:700,color:"#92400E"}}>⚠ {avisoEscopo}</div>}
+
     {/* Stats */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:14,marginBottom:24}}>
       {[
-        {l:"Total",v:st.total,color:C.navy,f:"todos"},
-        {l:"Rascunhos",v:st.rascunhos,color:"#6B7280",f:"rascunho"},
-        {l:"Em Andamento",v:st.andamento,color:C.blue,f:"aberta"},
-        {l:"Encerradas",v:st.encerradas,color:C.green,f:"fechada"},
-        {l:"Aprovadas",v:st.aprovadas,color:"#16A34A",f:"aprovada"},
-        {l:"Pend. Execução",v:st.pendentes,color:"#D97706",f:"pendente"},
-        {l:"Concluídas",v:st.concluidas,color:"#059669",f:"concluida"},
+        {l:"Total",v:st.total,color:C.navy,f:null,multi:null},
+        {l:"Rascunhos",v:st.rascunhos,color:"#6B7280",f:"rascunho",multi:null},
+        {l:"Em Andamento",v:st.andamento,color:C.blue,f:null,multi:["aberta","cotando"]},
+        {l:"Encerradas",v:st.encerradas,color:C.green,f:"fechada",multi:null},
+        {l:"Aprovadas",v:st.aprovadas,color:"#16A34A",f:"aprovada",multi:null},
+        {l:"Pend. Execução",v:st.pendentes,color:"#D97706",f:"pendente",multi:null},
+        {l:"Concluídas",v:st.concluidas,color:"#059669",f:"concluida",multi:null},
+        {l:"Rejeitadas",v:st.rejeitadas,color:C.red,f:"rejeitada",multi:null},
       ].map(s=>(
-        <Card key={s.l} style={{padding:"14px 16px",borderLeft:`4px solid ${s.color}`,cursor:"pointer"}} onClick={()=>setFiltroStatus(s.f)}>
+        <Card key={s.l} style={{padding:"14px 16px",borderLeft:`4px solid ${s.color}`,cursor:"pointer"}}
+          onClick={()=>setStatusFiltro(s.multi?s.multi:s.f?[s.f]:STATUS_OPCOES.map(o=>o.id))}>
           <div style={{fontSize:24,fontWeight:900,color:s.color}}>{s.v}</div>
           <div style={{fontSize:11,color:C.gray600,fontWeight:700,marginTop:2}}>{s.l}</div>
         </Card>
@@ -1241,7 +1086,7 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
       <Btn onClick={onCreate} variant="primary">＋ Nova Cotação</Btn>
     </div>
 
-    {/* Busca + filtro */}
+    {/* Busca + cliente */}
     <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
       <div style={{position:"relative",flex:1,minWidth:180}}>
         <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:C.gray400,fontSize:13}}>🔍</span>
@@ -1249,11 +1094,23 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
           style={{width:"100%",border:`1.5px solid ${C.gray200}`,borderRadius:8,padding:"8px 10px 8px 30px",fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}
           onFocus={e=>e.target.style.borderColor=C.amber} onBlur={e=>e.target.style.borderColor=C.gray200}/>
       </div>
-      <div style={{display:"flex",gap:4}}>
-        {STATUS_FILTROS.map(f=>(
-          <button key={f.id} onClick={()=>setFiltroStatus(f.id)} style={{padding:"7px 12px",borderRadius:7,fontSize:12,fontWeight:700,cursor:"pointer",border:`1.5px solid ${filtroStatus===f.id?C.navy:C.gray200}`,background:filtroStatus===f.id?C.navy:C.white,color:filtroStatus===f.id?C.white:C.gray600,transition:"all .12s",whiteSpace:"nowrap"}}>{f.label}</button>
-        ))}
-      </div>
+      {clientesEscopo&&clientesEscopo.length>1&&(
+        <select value={clienteFiltro} onChange={e=>setClienteFiltro(e.target.value)} style={{border:`1.5px solid ${C.gray200}`,borderRadius:8,padding:"8px 10px",fontSize:13,fontFamily:"inherit",color:clienteFiltro?C.gray800:C.gray400,background:C.white,outline:"none",cursor:"pointer",minWidth:160}}>
+          <option value="">Todos os clientes</option>
+          {clientesEscopo.map(cl=><option key={cl.id} value={cl.id}>{cl.nomeFantasia||cl.razaoSocial}</option>)}
+        </select>
+      )}
+    </div>
+
+    {/* Filtros de status — multi-seleção */}
+    <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16,alignItems:"center"}}>
+      {STATUS_OPCOES.map(o=>{
+        const sel=statusFiltro.includes(o.id);
+        return <button key={o.id} onClick={()=>toggleStatus(o.id)} style={{padding:"6px 12px",borderRadius:20,fontSize:11,fontWeight:700,cursor:"pointer",border:`1.5px solid ${sel?C.navy:C.gray200}`,background:sel?C.navy:C.white,color:sel?C.white:C.gray400,transition:"all .12s",whiteSpace:"nowrap"}}>{o.label}</button>;
+      })}
+      <button onClick={toggleFinalizados} style={{padding:"6px 12px",borderRadius:20,fontSize:11,fontWeight:700,cursor:"pointer",border:`1.5px solid ${C.amber}`,background:finalizadosOcultos?C.amber:C.white,color:finalizadosOcultos?C.navy:C.amberDark,whiteSpace:"nowrap"}}>
+        {finalizadosOcultos?"↺ Mostrar finalizados":"✕ Ocultar finalizados"}
+      </button>
     </div>
 
     {/* Lista */}
@@ -1267,7 +1124,7 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
       <Card style={{textAlign:"center",padding:32}}>
         <div style={{fontSize:32,marginBottom:8}}>🔍</div>
         <div style={{fontSize:14,fontWeight:700,color:C.gray600}}>Nenhuma cotação encontrada</div>
-        <button onClick={()=>{setSearch("");setFiltroStatus("todos");}} style={{marginTop:10,background:"none",border:"none",cursor:"pointer",color:C.navy,fontWeight:700,fontSize:13}}>Limpar filtros</button>
+        <button onClick={()=>{setSearch("");setClienteFiltro("");setStatusFiltro(STATUS_OPCOES.map(o=>o.id));}} style={{marginTop:10,background:"none",border:"none",cursor:"pointer",color:C.navy,fontWeight:700,fontSize:13}}>Limpar filtros</button>
       </Card>
     ):(
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -1305,6 +1162,137 @@ function Dashboard({cotacoes,fornecedores,onCreate,onOpen,onDelete}){
       </div>
     )}
 
+  </div>;
+}
+
+// ── Visão Financeira (admin) ─────────────────────────────────────────────────
+// Considera pedidos "pós-cotação": encerrada, aprovada e concluída.
+const FINANCEIRO_STATUS=["fechada","aprovada","concluida"];
+
+function TelaFinanceiro({cotacoes,clientes}){
+  const mob=useMobile();
+  const [clienteFiltro,setClienteFiltro]=useState("");
+  const [dataDe,setDataDe]=useState("");
+  const [dataAte,setDataAte]=useState("");
+
+  const qualificadas=cotacoes.filter(c=>FINANCEIRO_STATUS.includes(c.status));
+
+  const dentroPeriodo=(c)=>{
+    if(!dataDe&&!dataAte) return true;
+    const d=c.createdAt?new Date(c.createdAt):null;
+    if(!d||isNaN(d.getTime())) return true; // sem data confiável, não filtra fora
+    if(dataDe && d < new Date(dataDe+"T00:00:00")) return false;
+    if(dataAte && d > new Date(dataAte+"T23:59:59")) return false;
+    return true;
+  };
+
+  const filtradas=qualificadas.filter(c=>(!clienteFiltro||c.clienteId===clienteFiltro)&&dentroPeriodo(c));
+  const comValor=filtradas.map(c=>({...c,_valor:calcularMelhorTotal(c)}));
+  const totalGeral=comValor.reduce((s,c)=>s+c._valor,0);
+  const qtdPedidos=comValor.length;
+  const ticketMedio=qtdPedidos?totalGeral/qtdPedidos:0;
+
+  const porCliente={};
+  comValor.forEach(c=>{
+    const key=c.clienteId||"__sem_cliente__";
+    if(!porCliente[key]) porCliente[key]={clienteId:c.clienteId,qtd:0,total:0};
+    porCliente[key].qtd+=1;
+    porCliente[key].total+=c._valor;
+  });
+  const linhasCliente=Object.values(porCliente).sort((a,b)=>b.total-a.total);
+  const nomeCliente=(id)=>{
+    const cl=clientes.find(c=>c.id===id);
+    return cl?(cl.nomeFantasia||cl.razaoSocial):"— Sem cliente —";
+  };
+
+  const porStatus={};
+  FINANCEIRO_STATUS.forEach(s=>{porStatus[s]={qtd:0,total:0};});
+  comValor.forEach(c=>{porStatus[c.status].qtd+=1;porStatus[c.status].total+=c._valor;});
+
+  const listaOrdenada=[...comValor].sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
+
+  return <div>
+    <div style={{marginBottom:20}}>
+      <h1 style={{margin:0,fontSize:mob?20:22,fontWeight:900,color:C.navy}}>Visão Financeira</h1>
+      <div style={{fontSize:13,color:C.gray400,marginTop:2}}>Considera pedidos Encerrados, Aprovados e Concluídos</div>
+    </div>
+
+    {/* Filtros */}
+    <Card style={{marginBottom:20,padding:"14px 18px"}}>
+      <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 160px 160px",gap:"12px 14px"}}>
+        <div>
+          <Lbl>Cliente</Lbl>
+          <select value={clienteFiltro} onChange={e=>setClienteFiltro(e.target.value)} style={{width:"100%",border:`1.5px solid ${C.gray200}`,borderRadius:8,padding:"8px 12px",fontSize:14,fontFamily:"inherit",color:clienteFiltro?C.gray800:C.gray400,background:C.white,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+            <option value="">Todos os clientes</option>
+            {clientes.map(cl=><option key={cl.id} value={cl.id}>{cl.nomeFantasia||cl.razaoSocial}</option>)}
+          </select>
+        </div>
+        <div><Lbl>De</Lbl><Inp type="date" value={dataDe} onChange={setDataDe}/></div>
+        <div><Lbl>Até</Lbl><Inp type="date" value={dataAte} onChange={setDataAte}/></div>
+      </div>
+    </Card>
+
+    {/* Cards resumo */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:14,marginBottom:24}}>
+      <Card style={{padding:"16px 18px",borderLeft:`4px solid ${C.navy}`}}>
+        <div style={{fontSize:22,fontWeight:900,color:C.navy}}>{fmt(totalGeral)}</div>
+        <div style={{fontSize:11,color:C.gray600,fontWeight:700,marginTop:2}}>Total Geral</div>
+      </Card>
+      <Card style={{padding:"16px 18px",borderLeft:`4px solid ${C.blue}`}}>
+        <div style={{fontSize:22,fontWeight:900,color:C.blue}}>{qtdPedidos}</div>
+        <div style={{fontSize:11,color:C.gray600,fontWeight:700,marginTop:2}}>Pedidos</div>
+      </Card>
+      <Card style={{padding:"16px 18px",borderLeft:`4px solid ${C.amber}`}}>
+        <div style={{fontSize:22,fontWeight:900,color:C.amberDark}}>{fmt(ticketMedio)}</div>
+        <div style={{fontSize:11,color:C.gray600,fontWeight:700,marginTop:2}}>Ticket Médio</div>
+      </Card>
+      {FINANCEIRO_STATUS.map(s=>(
+        <Card key={s} style={{padding:"16px 18px",borderLeft:`4px solid ${STATUS_COLORS[s].color}`}}>
+          <div style={{fontSize:22,fontWeight:900,color:STATUS_COLORS[s].color}}>{fmt(porStatus[s].total)}</div>
+          <div style={{fontSize:11,color:C.gray600,fontWeight:700,marginTop:2}}>{STATUS_LABELS[s]} ({porStatus[s].qtd})</div>
+        </Card>
+      ))}
+    </div>
+
+    {/* Por cliente */}
+    <div style={{marginBottom:24}}>
+      <h2 style={{margin:"0 0 10px",fontSize:15,fontWeight:900,color:C.gray800}}>Por Cliente</h2>
+      {linhasCliente.length===0?<Card style={{textAlign:"center",padding:28,color:C.gray400,fontSize:13}}>Nenhum pedido no período/filtro selecionado</Card>:
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {linhasCliente.map(l=>(
+          <Card key={l.clienteId||"sem-cliente"} style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontWeight:800,fontSize:14,color:C.navy}}>{nomeCliente(l.clienteId)}</div>
+              <div style={{fontSize:12,color:C.gray400}}>{l.qtd} pedido{l.qtd!==1?"s":""}</div>
+            </div>
+            <div style={{fontWeight:900,fontSize:16,color:C.navy}}>{fmt(l.total)}</div>
+          </Card>
+        ))}
+      </div>}
+    </div>
+
+    {/* Lista detalhada */}
+    <div>
+      <h2 style={{margin:"0 0 10px",fontSize:15,fontWeight:900,color:C.gray800}}>Pedidos Considerados ({listaOrdenada.length})</h2>
+      {listaOrdenada.length===0?<Card style={{textAlign:"center",padding:28,color:C.gray400,fontSize:13}}>Nenhum pedido no período/filtro selecionado</Card>:
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {listaOrdenada.map(c=>(
+          <Card key={c.id} style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <span style={{fontWeight:800,fontSize:14,color:C.navy}}>{c.titulo}</span>
+                <span style={{fontSize:11,color:C.gray400,fontWeight:700}}>{c.numeroPedido}</span>
+                <Badge status={c.status}/>
+              </div>
+              <div style={{fontSize:12,color:C.gray400,marginTop:2}}>{nomeCliente(c.clienteId)} · {c.dataCriacao}</div>
+            </div>
+            <div style={{fontWeight:900,fontSize:15,color:C.navy}}>
+              {c._valor>0?fmt(c._valor):<span style={{color:C.gray400,fontWeight:600,fontSize:12}}>sem valor apurado</span>}
+            </div>
+          </Card>
+        ))}
+      </div>}
+    </div>
   </div>;
 }
 
@@ -1829,7 +1817,7 @@ function DetalheCotacao({cotacao,allFornecedores,clientes,onUpdate,onDelete,onBa
       const item=lista.find(i=>i.id===cot.planoContas);
       setPlanoLabel(item?getPath(lista,item):"—");
       setPlanoCodigo(item?.codigo||"—");
-    });
+    }).catch(err=>{console.error("❌ Erro ao carregar plano de contas:",err.message);setPlanoLabel("⚠ Erro ao carregar");setPlanoCodigo("—");});
   },[cot.planoContas]);
 
   const set=(k)=>(v)=>onUpdate({...cot,[k]:v});
@@ -2476,7 +2464,6 @@ function TelaConvites({onApprove}){
     const forn=Object.fromEntries(Object.entries(pend.dados).map(([k,v])=>[k.replace(/_([a-z])/g,(_,l)=>l.toUpperCase()),v]));
     onApprove({...forn,ativo:true});
     await pendentesFornecedorApi.delete(pend.id);
-    invalidatePlanoContasCache();
     await reload();
   };
 
@@ -2721,8 +2708,7 @@ function TelaUsuarios(){
       const {data:{session}}=await auth.getSession();
       await usersApi.create(session,{nome:nome.trim(),email:email.trim().toLowerCase(),senha,role,cargo});
       setShowForm(false);setNome("");setEmail("");setSenha("");setRole("comprador");setCargo("");
-      invalidatePlanoContasCache();
-    await reload();
+      await reload();
     }catch(e){setErro(e.message);}
     finally{setSaving(false);}
   };
@@ -2961,7 +2947,9 @@ export default function App(){
   const [supplierMode,setSupplierMode]=useState(false);
   const [approvalToken,setApprovalToken]=useState(null);
   const [pendingCount,setPendingCount]=useState(0);
-  const [currClientePlanoId,setCurrClientePlanoId]=useState(null); // ← NOVO: UUID do cliente ou null (global)
+  const [currClientePlanoId,setCurrClientePlanoId]=useState(null);
+  const [meusClientesIds,setMeusClientesIds]=useState(null); // null = sem restrição; array = IDs permitidos
+  const [erroEscopoClientes,setErroEscopoClientes]=useState("");
 
   const authCtx={user:session,logout:()=>auth.signOut()};
 
@@ -2988,28 +2976,28 @@ export default function App(){
     return ()=>unsub?.unsubscribe?.();
   },[]);
 
- async function hydrateSession(sess){
-  try{
-    const profile=await getMyProfile(sess.user.id);
-    setSession({userId:profile.id,nome:profile.nome,role:profile.role,email:profile.email,ativo:profile.ativo});
-  }catch(err){
-    // profile ainda não criado pelo trigger (raríssimo, race condition) — tenta de novo em 1.2s
-    console.warn('⚠️ hydrateSession tentativa 1 falhou, retentando em 1.2s:', err.message);
-    
-    setTimeout(async()=>{
-      try{
-        const p=await getMyProfile(sess.user.id);
-        setSession({userId:p.id,nome:p.nome,role:p.role,email:p.email,ativo:p.ativo});
-        console.log('✅ hydrateSession retry bem-sucedido');
-      }catch(err2){
-        console.error('❌ hydrateSession falhou após 2 tentativas:', err2.message);
-        console.error('Stack:', err2.stack);
-        // Logout forçado para evitar estado inconsistente (melhor que app travado)
-        auth.signOut().catch(e=>console.error('❌ Erro ao fazer logout:', e));
-      }
-    },1200);
+  async function hydrateSession(sess){
+    try{
+      const profile=await getMyProfile(sess.user.id);
+      setSession({userId:profile.id,nome:profile.nome,role:profile.role,email:profile.email,ativo:profile.ativo});
+    }catch(err){
+      // profile ainda não criado pelo trigger (raríssimo, race condition) — tenta de novo em 1.2s
+      console.warn('⚠️ hydrateSession tentativa 1 falhou, retentando em 1.2s:', err.message);
+
+      setTimeout(async()=>{
+        try{
+          const p=await getMyProfile(sess.user.id);
+          setSession({userId:p.id,nome:p.nome,role:p.role,email:p.email,ativo:p.ativo});
+          console.log('✅ hydrateSession retry bem-sucedido');
+        }catch(err2){
+          console.error('❌ hydrateSession falhou após 2 tentativas:', err2.message);
+          console.error('Stack:', err2.stack);
+          // Logout forçado para evitar estado inconsistente (melhor que app travado)
+          auth.signOut().catch(e=>console.error('❌ Erro ao fazer logout:', e));
+        }
+      },1200);
+    }
   }
-}
 
   // Carrega dados principais após login
   useEffect(()=>{
@@ -3019,6 +3007,23 @@ export default function App(){
       setCotacoes(c);setFornecedores(f);setClientes(cl);setLoaded(true);
     });
   },[session?.userId]);
+
+  // Carrega o escopo de clientes do usuário logado (para restringir comprador/síndico).
+  // Admin nunca é restrito. Se a lista vier vazia, mantém sem restrição — mesma
+  // convenção já usada em TelaUsuarios ("Nenhum selecionado = usuário vê todos").
+  // Isso é filtro de UI, não segurança — não existe RLS no banco impondo isso ainda.
+  useEffect(()=>{
+    if(!session){ setMeusClientesIds(null); return; }
+    if(session.role==="admin"){ setMeusClientesIds(null); return; }
+    setErroEscopoClientes("");
+    userClientesApi.listForUser(session.userId)
+      .then(lista=>{ setMeusClientesIds(lista.length?lista.map(c=>c.id):null); })
+      .catch(err=>{
+        console.error("❌ Erro ao carregar escopo de clientes:",err.message);
+        setErroEscopoClientes("Não foi possível carregar seus clientes atribuídos — mostrando todos por segurança de disponibilidade. Avise o administrador se isso não for esperado.");
+        setMeusClientesIds(null);
+      });
+  },[session?.userId,session?.role]);
 
   // Badge de pendentes de fornecedor (polling leve)
   useEffect(()=>{
@@ -3030,13 +3035,13 @@ export default function App(){
   const reloadCotacoes=async()=>setCotacoes(await cotacoesApi.list());
   const reloadFornecedores=async()=>setFornecedores(await fornecedoresApi.list());
   const reloadClientes=async()=>setClientes(await clientesApi.list());
-  const abrirPlanoCliente=(clienteId)=>{setCurrClientePlanoId(clienteId);setView('plano');}; // ← NOVO
+  const abrirPlanoCliente=(clienteId)=>{setCurrClientePlanoId(clienteId);setView('plano');};
 
   const createCot=async(c)=>{
-  const novo=await cotacoesApi.create(c);
-  await reloadCotacoes();
-  setCurrCot(novo);setShowNova(false);
-};
+    const novo=await cotacoesApi.create(c);
+    await reloadCotacoes();
+    setCurrCot(novo);setShowNova(false);
+  };
 
   const updCot=useCallback(async(u)=>{
     const ant=cotacoes.find(c=>c.id===u.id)||{};
@@ -3150,13 +3155,19 @@ export default function App(){
   const role=ROLES[session.role]||ROLES.comprador;
   const isInCotacao=!!currCot;
   const isSindico=session.role==="sindico";
-  const cotacoesVisiveis=isSindico?cotacoes.filter(c=>c.status!=="rascunho"):cotacoes;
+
+  // Escopo de clientes: admin sem restrição; comprador/síndico restritos aos
+  // clientes atribuídos (ver useEffect acima). Filtro de UI — não é RLS.
+  const cotacoesEscopo = meusClientesIds ? cotacoes.filter(c=>meusClientesIds.includes(c.clienteId)) : cotacoes;
+  const cotacoesVisiveis = isSindico ? cotacoesEscopo.filter(c=>c.status!=="rascunho") : cotacoesEscopo;
+  const clientesEscopo = meusClientesIds ? clientes.filter(c=>meusClientesIds.includes(c.id)) : clientes;
 
   const NAV=[
     {id:"dashboard",icon:"📋",label:"Cotações"},
     ...(can(session,"manage_fornecedores")?[{id:"fornecedores",icon:"🏭",label:"Fornecedores"}]:[]),
     ...(can(session,"manage_fornecedores")?[{id:"clientes",icon:"🏢",label:"Clientes"}]:[]),
     ...(can(session,"invite")?[{id:"convites",icon:"🔗",label:"Convites",badge:pendingCount}]:[]),
+    ...(can(session,"all")?[{id:"financeiro",icon:"💰",label:"Financeiro"}]:[]),
     ...(can(session,"all")?[{id:"plano",icon:"📒",label:"Plano de Contas"}]:[]),
     ...(can(session,"all")?[{id:"usuarios",icon:"👥",label:"Usuários"}]:[]),
   ];
@@ -3249,7 +3260,7 @@ export default function App(){
 
           {/* Page content */}
           <div style={{flex:1,padding:isMobile?"14px 12px":"28px 32px",paddingBottom:isMobile?80:28,maxWidth:isMobile?"100%":1080,width:"100%"}}>
-            {view==="dashboard"&&!currCot&&<Dashboard cotacoes={cotacoesVisiveis} fornecedores={fornecedores} onCreate={()=>setShowNova(true)} onOpen={(id)=>{const c=cotacoesVisiveis.find(x=>x.id===id);if(c)setCurrCot(c);}} onDelete={deleteCot}/>}
+            {view==="dashboard"&&!currCot&&<Dashboard cotacoes={cotacoesVisiveis} clientesEscopo={clientesEscopo} avisoEscopo={erroEscopoClientes} onCreate={()=>setShowNova(true)} onOpen={(id)=>{const c=cotacoesVisiveis.find(x=>x.id===id);if(c)setCurrCot(c);}} onDelete={deleteCot}/>}
             {view==="fornecedores"&&can(session,"manage_fornecedores")&&<TelaFornecedores fornecedores={fornecedores}
               onAdd={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();}}
               onEdit={async f=>{const {id,criadoEm,...rest}=f;await fornecedoresApi.update(id,rest);await reloadFornecedores();}}
@@ -3260,6 +3271,7 @@ export default function App(){
               onDelete={async id=>{const cliente=clientes.find(c=>c.id===id);const cotacoesDoCliente=cotacoes.filter(cot=>cot.clienteId===id);if(cotacoesDoCliente.length>0){alert(`❌ Não é possível excluir "${cliente?.nomeFantasia||cliente?.razaoSocial}"\n\nEste cliente possui ${cotacoesDoCliente.length} cotação(ões) associada(s).\n\nDelete as cotações primeiro e tente novamente.`);return;}if(!window.confirm(`Tem certeza que deseja excluir "${cliente?.nomeFantasia||cliente?.razaoSocial}"? Esta ação não pode ser desfeita.`)){return;}try{await clientesApi.delete(id);alert("✅ Cliente excluído com sucesso!");await reloadClientes();}catch(e){if(e.message?.includes("23503")||e.message?.includes("still referenced")){alert("❌ Erro: Este cliente ainda possui dados associados.\nDelete esses dados primeiro.");}else{alert("❌ Erro ao excluir cliente: "+(e.message||JSON.stringify(e)));}console.error("Erro delete cliente:",e);}}}
               onOpenPlano={abrirPlanoCliente}/>}
             {view==="convites"&&can(session,"invite")&&<TelaConvites onApprove={async f=>{await fornecedoresApi.create(f);await reloadFornecedores();setPendingCount(c=>Math.max(0,c-1));}}/>}
+            {view==="financeiro"&&can(session,"all")&&<TelaFinanceiro cotacoes={cotacoesVisiveis} clientes={clientes}/>}
             {view==="plano"&&can(session,"all")&&<TelaPlanoContas clienteId={currClientePlanoId} clientes={clientes} onBack={()=>{setView("dashboard");setCurrClientePlanoId(null);}}/>}
             {view==="usuarios"&&can(session,"all")&&<TelaUsuarios/>}
             {currCot&&<DetalheCotacao cotacao={currCot} allFornecedores={fornecedores} clientes={clientes} onUpdate={updCot} onDelete={deleteCot} onBack={()=>setCurrCot(null)} onAddFornecedor={async f=>{const criado=await fornecedoresApi.create(f);await reloadFornecedores();return criado;}} readOnly={isSindico}/>}
