@@ -898,15 +898,16 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
         {(clientes||[]).map(cl=><option key={cl.id} value={cl.id}>{cl.nomeFantasia||cl.razaoSocial}</option>)}
       </select>
     </div>
-    <div style={{marginTop:12}}>
-      <Lbl>Número PC de Compra</Lbl>
-      <Inp value={c.numeroPO||""} onChange={set("numeroPO")} placeholder="PC001_2026" style={{background:C.white}}/>
-      <div style={{fontSize:11,color:C.gray400,marginTop:4}}>Pré-preenchido automaticamente. Pode ser editado manualmente se necessário.</div>
+     <div style={{marginTop:12}}>
+      <Lbl>Cliente / Condomínio</Lbl>
+      <select value={c.clienteId||""} onChange={e=>{
+        const cId=e.target.value;
+        set("clienteId")(cId);
+      }} style={{width:"100%",border:`1.5px solid ${C.gray200}`,borderRadius:8,padding:"8px 12px",fontSize:14,fontFamily:"inherit",color:c.clienteId?C.gray800:C.gray400,background:C.white,outline:"none",cursor:"pointer",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=C.amber} onBlur={e=>e.target.style.borderColor=C.gray200}>
+        <option value="">Selecione o cliente...</option>
+        {(clientes||[]).map(cl=><option key={cl.id} value={cl.id}>{cl.nomeFantasia||cl.razaoSocial}</option>)}
+      </select>
     </div>
-    {c.clienteId&&<div style={{marginTop:12}}>
-      <Btn onClick={()=>setShowPlano(true)} variant="light" size="sm">📒 Ver Plano de Contas Completo</Btn>
-      <div style={{fontSize:11,color:C.gray400,marginTop:4}}>Visualize todas as contas e subcontas do cliente selecionado</div>
-    </div>}
     <SectionDivider>Objeto da Cotação</SectionDivider>
     <div style={{marginBottom:12}}><Lbl required>Título</Lbl><Inp value={c.titulo} onChange={set("titulo")} placeholder="Resumo em uma linha – Ex: Lixeira 120L Pedal Preto"/></div>
     <div style={{marginBottom:12}}><Lbl required>Descrição da Aquisição</Lbl><Inp value={c.descricaoAquisicao} onChange={set("descricaoAquisicao")} placeholder="Descreva o que será adquirido, onde será utilizado..." rows={3}/></div>
