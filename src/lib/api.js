@@ -145,8 +145,9 @@ export const clientesApi = crudFactory("clientes");
 
 /**
  * Obter próximo número de PC formatado para um cliente
+ * Formato: PC###_YYYY (ex: PC256_2026, PC001_2026)
  * @param {string} clienteId - UUID do cliente
- * @returns {Promise<string>} - Formato: "PC-0001"
+ * @returns {Promise<string>} - Formato: "PC256_2026"
  */
 clientesApi.getProximoPO = async (clienteId) => {
   try {
@@ -158,7 +159,8 @@ clientesApi.getProximoPO = async (clienteId) => {
     
     if (error) throw error;
     const num = data?.numero_pedido_proximo || 1;
-    return `PC-${String(num).padStart(4, '0')}`;
+    const year = new Date().getFullYear();
+    return `PC${String(num).padStart(3, '0')}_${year}`;
   } catch (err) {
     console.error('❌ clientesApi.getProximoPO:', err.message);
     throw err;
@@ -566,55 +568,4 @@ export const userClientesApi = {
     const { error } = await supabase
       .from("user_clientes")
       .insert({ user_id: userId, cliente_id: clienteId });
-    if (error && !error.message.includes("duplicate")) throw error;
-  },
-  remove: async (userId, clienteId) => {
-    const { error } = await supabase
-      .from("user_clientes")
-      .delete()
-      .eq("user_id", userId)
-      .eq("cliente_id", clienteId);
-    if (error) throw error;
-  },
-};
-export const usersApi = {
-  create: async (_session, { nome, email, senha, role, cargo }) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error("Sessão expirada. Faça login novamente.");
-
-    const res = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/quick-task`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-          "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ nome, email, senha, role, cargo }),
-      }
-    );
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || "Erro ao criar usuário");
-    return data;
-  },
-};
-
-// ── Aprovação via WhatsApp (sem login) ────────────────────────────────────
-export const aprovacaoApi = {
-  buscarPorToken: async (token) => {
-    const { data, error } = await supabase.rpc("buscar_cotacao_por_token", { p_token: token });
-    if (error) throw error;
-    return data;
-  },
-  aprovarPorToken: async (token, status, assinante, obs = null) => {
-    const { data, error } = await supabase.rpc("aprovar_cotacao_por_token", {
-      p_token: token, p_status: status, p_assinante: assinante, p_obs: obs,
-    });
-    if (error) throw error;
-    return data;
-  },
-};
-
-// ── Cotações: salvar token de aprovação + historico ───────────────────────
-// (usa cotacoesApi.update já existente)
+    if (error &&
