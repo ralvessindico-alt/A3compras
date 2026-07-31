@@ -890,13 +890,10 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
 <select value={c.clienteId||""} onChange={e=>{
   const cId=e.target.value;
   set("clienteId")(cId);
-  const cli=clientes?.find(x=>x.id===cId);
-  if(cli){
-    clientesApi.getProximoPO(cId)
-      .then(po => set("numeroPO")(po))
-      .catch(err => console.error("❌ Erro ao obter PC:", err));
-  }
-}}
+}} style={{width:"100%",border:`1.5px solid ${C.gray200}`,borderRadius:8,padding:"8px 12px",fontSize:14,fontFamily:"inherit",color:c.clienteId?C.gray800:C.gray400,background:C.white,outline:"none",cursor:"pointer",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=C.amber} onBlur={e=>e.target.style.borderColor=C.gray200}>
+  <option value="">Selecione o cliente...</option>
+  {(clientes||[]).map(cl=><option key={cl.id} value={cl.id}>{cl.nomeFantasia||cl.razaoSocial}</option>)}
+</select>
         <option value="">Selecione o cliente...</option>
         {(clientes||[]).map(cl=><option key={cl.id} value={cl.id}>{cl.nomeFantasia||cl.razaoSocial}</option>)}
       </select>
@@ -2822,15 +2819,6 @@ export default function App(){
 
   const createCot=async(c)=>{
   const novo=await cotacoesApi.create(c);
-  // 🔄 Incrementar número de PC do cliente
-  if(novo && c.clienteId) {
-    try {
-      await clientesApi.incrementarPO(c.clienteId);
-      console.log(`✅ PC incrementado para cliente ${c.clienteId}`);
-    } catch(err) {
-      console.error("⚠️ Incremento de PO falhou, mas cotação foi criada:", err);
-    }
-  }
   await reloadCotacoes();
   setCurrCot(novo);setShowNova(false);
 };
