@@ -885,19 +885,6 @@ function ModalNovaCotacao({onClose,onSave,fornecedores,clientes}){
       <div><Lbl required>Responsável pelo Pedido</Lbl><Inp value={c.responsavel} onChange={set("responsavel")} placeholder="Nome completo"/></div>
       <div><Lbl>Aprovador</Lbl><Inp value={c.aprovador} onChange={set("aprovador")} placeholder="Ex: Katia Macedo"/></div>
     </div>
-    <div style={{marginTop:12}}>
-     <Lbl>Cliente / Condomínio</Lbl>
-<select value={c.clienteId||""} onChange={e=>{
-  const cId=e.target.value;
-  set("clienteId")(cId);
-}} style={{width:"100%",border:`1.5px solid ${C.gray200}`,borderRadius:8,padding:"8px 12px",fontSize:14,fontFamily:"inherit",color:c.clienteId?C.gray800:C.gray400,background:C.white,outline:"none",cursor:"pointer",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=C.amber} onBlur={e=>e.target.style.borderColor=C.gray200}>
-  <option value="">Selecione o cliente...</option>
-  {(clientes||[]).map(cl=><option key={cl.id} value={cl.id}>{cl.nomeFantasia||cl.razaoSocial}</option>)}
-</select>
-        <option value="">Selecione o cliente...</option>
-        {(clientes||[]).map(cl=><option key={cl.id} value={cl.id}>{cl.nomeFantasia||cl.razaoSocial}</option>)}
-      </select>
-    </div>
      <div style={{marginTop:12}}>
       <Lbl>Cliente / Condomínio</Lbl>
       <select value={c.clienteId||""} onChange={e=>{
