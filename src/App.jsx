@@ -2784,17 +2784,28 @@ export default function App(){
     return ()=>unsub?.unsubscribe?.();
   },[]);
 
-  async function hydrateSession(sess){
-    try{
-      const profile=await getMyProfile(sess.user.id);
-      setSession({userId:profile.id,nome:profile.nome,role:profile.role,email:profile.email,ativo:profile.ativo});
-    }catch{
-      // profile ainda não criado pelo trigger (raríssimo, race condition) — tenta de novo em 1s
-      setTimeout(async()=>{
-        try{const p=await getMyProfile(sess.user.id);setSession({userId:p.id,nome:p.nome,role:p.role,email:p.email,ativo:p.ativo});}catch{}
-      },1200);
-    }
+ async function hydrateSession(sess){
+  try{
+    const profile=await getMyProfile(sess.user.id);
+    setSession({userId:profile.id,nome:profile.nome,role:profile.role,email:profile.email,ativo:profile.ativo});
+  }catch(err){
+    // profile ainda não criado pelo trigger (raríssimo, race condition) — tenta de novo em 1.2s
+    console.warn('⚠️ hydrateSession tentativa 1 falhou, retentando em 1.2s:', err.message);
+    
+    setTimeout(async()=>{
+      try{
+        const p=await getMyProfile(sess.user.id);
+        setSession({userId:p.id,nome:p.nome,role:p.role,email:p.email,ativo:p.ativo});
+        console.log('✅ hydrateSession retry bem-sucedido');
+      }catch(err2){
+        console.error('❌ hydrateSession falhou após 2 tentativas:', err2.message);
+        console.error('Stack:', err2.stack);
+        // Logout forçado para evitar estado inconsistente (melhor que app travado)
+        auth.signOut().catch(e=>console.error('❌ Erro ao fazer logout:', e));
+      }
+    },1200);
   }
+}
 
   // Carrega dados principais após login
   useEffect(()=>{
