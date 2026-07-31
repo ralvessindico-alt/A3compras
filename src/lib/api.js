@@ -173,13 +173,6 @@ export const planoContasApi = {
   },
 
   /**
-   * Alias para list() - compatibilidade com código existente
-   */
-  listByCliente: async (clienteId = null) => {
-    return planoContasApi.list(clienteId);
-  },
-
-  /**
    * Cria nova conta/subconta/variação
    * @param {object} data - { codigo, descricao, nivel, parentId, cliente_id }
    */
@@ -260,72 +253,6 @@ export const planoContasApi = {
       if (error) throw error;
     } catch (err) {
       console.error('❌ planoContasApi.resetAll:', err.message);
-      throw err;
-    }
-  },
-
-  /**
-   * Copia plano de um cliente para outro (usado ao criar cliente novo)
-   * @param {string} fromClienteId - cliente com plano template
-   * @param {string} toClienteId - cliente que recebe a cópia
-   */
-  duplicarPlano: async (fromClienteId, toClienteId) => {
-    try {
-      // Carrega plano de origem
-      const original = await planoContasApi.list(fromClienteId);
-      if (!original.length) return [];
-
-      // Mapeia IDs antigos → novos (para manter hierarquia)
-      const mapIdAntigo = {};
-      const cópias = [];
-
-      // Primeiro: cria contas (nivel 1)
-      for (const conta of original.filter(c => c.nivel === 1)) {
-        const nova = await planoContasApi.create({
-          codigo: conta.codigo,
-          descricao: conta.descricao,
-          nivel: conta.nivel,
-          parentId: null,
-          cliente_id: toClienteId,
-        });
-        mapIdAntigo[conta.id] = nova.id;
-        cópias.push(nova);
-      }
-
-      // Segundo: cria subcontas (nivel 2)
-      for (const sub of original.filter(c => c.nivel === 2)) {
-        const novaPai = mapIdAntigo[sub.parentId];
-        if (!novaPai) continue;
-
-        const nova = await planoContasApi.create({
-          codigo: sub.codigo,
-          descricao: sub.descricao,
-          nivel: sub.nivel,
-          parentId: novaPai,
-          cliente_id: toClienteId,
-        });
-        mapIdAntigo[sub.id] = nova.id;
-        cópias.push(nova);
-      }
-
-      // Terceiro: cria variações (nivel 3)
-      for (const var3 of original.filter(c => c.nivel === 3)) {
-        const novaPai = mapIdAntigo[var3.parentId];
-        if (!novaPai) continue;
-
-        const nova = await planoContasApi.create({
-          codigo: var3.codigo,
-          descricao: var3.descricao,
-          nivel: var3.nivel,
-          parentId: novaPai,
-          cliente_id: toClienteId,
-        });
-        cópias.push(nova);
-      }
-
-      return cópias;
-    } catch (err) {
-      console.error('❌ planoContasApi.duplicarPlano:', err.message);
       throw err;
     }
   },
@@ -471,14 +398,6 @@ export const userClientesApi = {
       .from("user_clientes")
       .select("cliente_id, clientes(id, razao_social, nome_fantasia, categoria)")
       .eq("user_id", userId);
-    if (error) throw error;
-    return (data || []).map(r => r.clientes).filter(Boolean);
-  },
-  // Usuário logado: lista seus próprios clientes atribuídos
-  listMine: async () => {
-    const { data, error } = await supabase
-      .from("user_clientes")
-      .select("cliente_id, clientes(id, razao_social, nome_fantasia, categoria)");
     if (error) throw error;
     return (data || []).map(r => r.clientes).filter(Boolean);
   },
